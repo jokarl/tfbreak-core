@@ -1,6 +1,6 @@
 ---
 id: "CR-0004"
-status: proposed
+status: approved
 date: 2026-01-28
 requestor: project maintainers
 stakeholders: [project maintainers, contributors]

@@ -63,6 +63,11 @@ type VariableSignature struct {
 	// Sensitive indicates if the variable is marked sensitive
 	Sensitive bool `json:"sensitive,omitempty"`
 
+	// Nullable indicates if the variable accepts null values.
+	// nil means unspecified (defaults to true in Terraform 1.1+)
+	// Pointer is used to distinguish unset from explicit false.
+	Nullable *bool `json:"nullable,omitempty"`
+
 	// Required is true if the variable has no default value
 	Required bool `json:"required"`
 
@@ -73,6 +78,15 @@ type VariableSignature struct {
 // HasDefault returns true if the variable has a default value
 func (v *VariableSignature) HasDefault() bool {
 	return !v.Required
+}
+
+// IsNullable returns the effective nullable value.
+// Returns true if Nullable is nil (Terraform 1.1+ default) or explicitly true.
+func (v *VariableSignature) IsNullable() bool {
+	if v.Nullable == nil {
+		return true // Terraform default since 1.1
+	}
+	return *v.Nullable
 }
 
 // OutputSignature represents the signature of a Terraform output

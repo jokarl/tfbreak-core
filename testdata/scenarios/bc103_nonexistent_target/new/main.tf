@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    null = {
+      source = "hashicorp/null"
+    }
+  }
+}
+
 # Resource removed, moved block points to non-existent target
 
 moved {
