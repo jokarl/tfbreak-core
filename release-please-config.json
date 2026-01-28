@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "go",
+  "draft": true,
+  "packages": {
+    ".": {
+      "component": "tfbreak"
+    }
+  },
+  "changelog-sections": [
+    {
+      "type": "deps",
+      "section": "Dependencies",
+      "hidden": false
+    }
+  ],
+  "include-component-in-tag": false
+}
