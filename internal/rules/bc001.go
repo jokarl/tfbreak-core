@@ -1,0 +1,57 @@
+package rules
+
+import (
+	"fmt"
+
+	"github.com/jokarl/tfbreak-core/internal/types"
+)
+
+// BC001 detects when a new required variable is added
+type BC001 struct{}
+
+func init() {
+	Register(&BC001{})
+}
+
+func (r *BC001) ID() string {
+	return "BC001"
+}
+
+func (r *BC001) Name() string {
+	return "required-input-added"
+}
+
+func (r *BC001) Description() string {
+	return "A new variable was added without a default value, which will break existing callers"
+}
+
+func (r *BC001) DefaultSeverity() types.Severity {
+	return types.SeverityBreaking
+}
+
+func (r *BC001) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
+	var findings []*types.Finding
+
+	for name, newVar := range new.Variables {
+		// Skip if variable existed in old
+		if _, exists := old.Variables[name]; exists {
+			continue
+		}
+
+		// Skip if variable has a default (is optional)
+		if !newVar.Required {
+			continue
+		}
+
+		finding := types.NewFinding(
+			r.ID(),
+			r.Name(),
+			r.DefaultSeverity(),
+			fmt.Sprintf("New required variable %q has no default", name),
+		).WithNewLocation(&newVar.DeclRange)
+
+		findings = append(findings, finding)
+	}
+
+	return findings
+}

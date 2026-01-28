@@ -10,7 +10,10 @@
       "Bash(./bin/tfbreak:*)",
       "Bash(make test:*)",
       "Bash(go build:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ncheckpoint: Implement Phase 1 MVP of tfbreak - Terraform breaking change detector\n\nComplete implementation of CR-0001 Phase 1 MVP including:\n\nCore Types \\(internal/types/\\):\n- Severity enum \\(BREAKING, RISKY, INFO\\) with JSON marshaling\n- ModuleSnapshot and signature types \\(Variable, Output, Resource, ModuleCall, MovedBlock\\)\n- Finding and CheckResult types for rule evaluation results\n\nLoader Package \\(internal/loader/\\):\n- Load Terraform modules using hashicorp/terraform-config-inspect\n- Extract variables, outputs, resources, and module calls\n- Parse moved blocks using HCL/v2 directly \\(not supported by terraform-config-inspect\\)\n\nRules Package \\(internal/rules/\\):\n- Rule interface and registry pattern\n- Rule engine for evaluating all enabled rules\n- 9 rules implemented: BC001, BC002, BC005, RC006, BC009, BC100, BC101, BC102, BC103\n\nOutput Package \\(internal/output/\\):\n- Renderer interface with text and JSON implementations\n- Color support for terminal output\n\nCLI Package \\(internal/cli/\\):\n- check command: compare old/new directories and report findings\n- version command: print version information\n- Flags: --format, --fail-on, --color, --output, --quiet, --verbose\n\nTest Suite:\n- 54 unit tests covering all packages\n- 10 fixture-based integration test scenarios\n- Test fixtures in testdata/scenarios/ and testdata/loader/\n\nBuild System:\n- Makefile with build, test, lint, clean, coverage targets\n- go.mod with dependencies \\(cobra, terraform-config-inspect, hcl/v2, color\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   },
   "enableAllProjectMcpServers": true,
