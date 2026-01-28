@@ -30,6 +30,29 @@ func (r *RC006) DefaultSeverity() types.Severity {
 	return types.SeverityRisky
 }
 
+func (r *RC006) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `variable "instance_type" {
+  type    = string
+  default = "t3.micro"
+}`,
+		ExampleNew: `variable "instance_type" {
+  type    = string
+  default = "t3.small"  # Changed!
+}`,
+		Remediation: `This is a RISKY change because callers that rely on the default
+may experience different behavior. Consider:
+1. Documenting the change in your changelog
+2. Notifying callers of the change
+3. Using an annotation if this is intentional:
+   # tfbreak:ignore RC006 reason="intentional upgrade"`,
+	}
+}
+
 func (r *RC006) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

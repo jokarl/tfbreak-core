@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/jokarl/tfbreak-core/internal/pathfilter"
 )
 
 func getTestdataDir() string {
@@ -194,5 +196,57 @@ func TestLoadFile(t *testing.T) {
 	_, err := Load(dir)
 	if err == nil {
 		t.Error("expected error when loading a file")
+	}
+}
+
+func TestLoadWithFilter(t *testing.T) {
+	dir := filepath.Join(getTestdataDir(), "basic")
+
+	// Test with default filter (should include all .tf files)
+	filter := pathfilter.DefaultFilter()
+	snap, err := LoadWithFilter(dir, filter)
+	if err != nil {
+		t.Fatalf("LoadWithFilter() error = %v", err)
+	}
+
+	// Should have all the same content as Load()
+	if len(snap.Variables) != 3 {
+		t.Errorf("expected 3 variables, got %d", len(snap.Variables))
+	}
+	if len(snap.Outputs) != 2 {
+		t.Errorf("expected 2 outputs, got %d", len(snap.Outputs))
+	}
+}
+
+func TestLoadWithFilterNil(t *testing.T) {
+	dir := filepath.Join(getTestdataDir(), "basic")
+
+	// Test with nil filter (should work like regular Load)
+	snap, err := LoadWithFilter(dir, nil)
+	if err != nil {
+		t.Fatalf("LoadWithFilter() error = %v", err)
+	}
+
+	if len(snap.Variables) != 3 {
+		t.Errorf("expected 3 variables, got %d", len(snap.Variables))
+	}
+}
+
+func TestLoadWithFilterExclude(t *testing.T) {
+	dir := filepath.Join(getTestdataDir(), "basic")
+
+	// Test excluding outputs.tf
+	filter := pathfilter.New([]string{"**/*.tf"}, []string{"outputs.tf"})
+	snap, err := LoadWithFilter(dir, filter)
+	if err != nil {
+		t.Fatalf("LoadWithFilter() error = %v", err)
+	}
+
+	// Should have variables but no outputs (outputs are in outputs.tf)
+	if len(snap.Variables) != 3 {
+		t.Errorf("expected 3 variables, got %d", len(snap.Variables))
+	}
+	if len(snap.Outputs) != 0 {
+		t.Errorf("expected 0 outputs (excluded), got %d", len(snap.Outputs))
 	}
 }

@@ -29,6 +29,46 @@ func (r *BC103) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC103) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `resource "aws_s3_bucket" "a" {}
+resource "aws_s3_bucket" "b" {}`,
+		ExampleNew: `# Conflict: duplicate "from" addresses
+moved {
+  from = aws_s3_bucket.a
+  to   = aws_s3_bucket.c
+}
+moved {
+  from = aws_s3_bucket.a  # Duplicate!
+  to   = aws_s3_bucket.d
+}
+
+# Or: cycle
+moved {
+  from = aws_s3_bucket.a
+  to   = aws_s3_bucket.b
+}
+moved {
+  from = aws_s3_bucket.b
+  to   = aws_s3_bucket.a  # Cycle!
+}
+
+# Or: non-existent target
+moved {
+  from = aws_s3_bucket.a
+  to   = aws_s3_bucket.nonexistent  # Target doesn't exist!
+}`,
+		Remediation: `Fix the moved blocks:
+1. Remove duplicate "from" addresses - each resource can only be moved once
+2. Break cycles by removing one of the circular moves
+3. Ensure "to" targets exist in the new configuration`,
+	}
+}
+
 func (r *BC103) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

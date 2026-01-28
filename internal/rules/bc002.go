@@ -29,6 +29,26 @@ func (r *BC002) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC002) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `variable "instance_type" {
+  type    = string
+  default = "t3.micro"
+}`,
+		ExampleNew: `# Variable was removed`,
+		Remediation: `To fix this issue, either:
+1. Keep the variable (even if unused) for backward compatibility
+2. Deprecate the variable first (add description noting deprecation)
+3. Coordinate with all callers to remove the variable usage
+4. Use an annotation if removal is intentional:
+   # tfbreak:ignore BC002 reason="deprecated variable removed"`,
+	}
+}
+
 func (r *BC002) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

@@ -29,6 +29,31 @@ func (r *BC101) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC101) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `module "vpc" {
+  source = "./modules/vpc"
+}`,
+		ExampleNew: `# Module was removed without a moved block
+# This will DESTROY all resources in the module!`,
+		Remediation: `To fix this issue, either:
+1. Add a moved block to preserve state:
+   moved {
+     from = module.vpc
+     to   = module.network
+   }
+
+2. If intentionally destroying, use an annotation:
+   # tfbreak:ignore BC101 reason="module replaced"
+
+WARNING: Removing modules without moved blocks will destroy all their resources!`,
+	}
+}
+
 func (r *BC101) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 
