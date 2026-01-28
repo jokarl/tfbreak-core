@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+// RuleResolver resolves rule names to rule IDs
+type RuleResolver interface {
+	// ResolveRuleID resolves a rule name or ID to a canonical rule ID
+	// Returns the ID and true if found, or empty string and false if not found
+	ResolveRuleID(nameOrID string) (string, bool)
+}
+
+// DefaultResolver is a no-op resolver that returns the input unchanged
+// Used when no resolver is configured (backward compatibility)
+type DefaultResolver struct{}
+
+// ResolveRuleID returns the input unchanged (assumes it's already an ID)
+func (r DefaultResolver) ResolveRuleID(nameOrID string) (string, bool) {
+	return nameOrID, true
+}
+
 // Scope defines where an annotation applies
 type Scope int
 

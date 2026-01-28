@@ -6,26 +6,77 @@ import (
 	"github.com/jokarl/tfbreak-core/internal/types"
 )
 
-// ValidRuleIDs contains all valid rule IDs
-var ValidRuleIDs = map[string]bool{
-	"BC001": true,
-	"BC002": true,
-	"BC005": true,
-	"RC006": true,
-	"BC009": true,
-	"BC100": true,
-	"BC101": true,
-	"BC102": true,
-	"BC103": true,
-	// Phase 3 rules (not yet implemented but reserve the IDs)
-	"BC003": true,
-	"BC004": true,
-	"RC007": true,
-	"RC008": true,
-	"BC010": true,
-	"RC011": true,
-	"BC200": true,
-	"BC201": true,
+// RuleValidator validates rule identifiers
+type RuleValidator interface {
+	// IsValidRuleID returns true if the rule ID is valid
+	IsValidRuleID(ruleID string) bool
+	// IsValidRuleName returns true if the rule name is valid
+	IsValidRuleName(name string) bool
+	// ResolveToID resolves a rule name or ID to a canonical rule ID
+	// Returns the ID and true if valid, empty string and false if invalid
+	ResolveToID(nameOrID string) (string, bool)
+}
+
+// defaultValidator is set by the rules package during init
+var defaultValidator RuleValidator
+
+// SetRuleValidator sets the global rule validator
+func SetRuleValidator(v RuleValidator) {
+	defaultValidator = v
+}
+
+// fallbackValidator is used when no validator is set (for testing)
+type fallbackValidator struct{}
+
+func (f fallbackValidator) IsValidRuleID(ruleID string) bool {
+	// Check if any rule name maps to this ID
+	for _, id := range ValidRuleNames {
+		if id == ruleID {
+			return true
+		}
+	}
+	return false
+}
+
+func (f fallbackValidator) IsValidRuleName(name string) bool {
+	_, ok := ValidRuleNames[name]
+	return ok
+}
+
+func (f fallbackValidator) ResolveToID(nameOrID string) (string, bool) {
+	// Only accept rule names, not legacy IDs
+	if id, ok := ValidRuleNames[nameOrID]; ok {
+		return id, true
+	}
+	return "", false
+}
+
+// ValidRuleNames maps rule names to IDs (fallback when no validator is set)
+// Only rule names are accepted - legacy rule codes (BC001, etc.) are not supported
+var ValidRuleNames = map[string]string{
+	"required-input-added":          "BC001",
+	"input-removed":                 "BC002",
+	"input-type-changed":            "BC004",
+	"input-default-removed":         "BC005",
+	"output-removed":                "BC009",
+	"resource-removed-no-moved":     "BC100",
+	"module-removed-no-moved":       "BC101",
+	"invalid-moved-block":           "BC102",
+	"conflicting-moved":             "BC103",
+	"input-default-changed":         "RC006",
+	"input-nullable-changed":        "RC007",
+	"input-sensitive-changed":       "RC008",
+	"output-sensitive-changed":      "RC011",
+	"terraform-version-constrained": "BC200",
+	"provider-version-constrained":  "BC201",
+}
+
+// getValidator returns the current rule validator
+func getValidator() RuleValidator {
+	if defaultValidator != nil {
+		return defaultValidator
+	}
+	return fallbackValidator{}
 }
 
 // Validate validates the configuration
@@ -62,10 +113,12 @@ func Validate(cfg *Config) error {
 		}
 	}
 
+	validator := getValidator()
+
 	// Validate rule configurations
 	for _, rule := range cfg.Rules {
-		if !ValidRuleIDs[rule.ID] {
-			return fmt.Errorf("unknown rule ID: %s", rule.ID)
+		if _, ok := validator.ResolveToID(rule.ID); !ok {
+			return fmt.Errorf("unknown rule: %s", rule.ID)
 		}
 
 		if rule.Severity != nil {
@@ -75,17 +128,18 @@ func Validate(cfg *Config) error {
 		}
 	}
 
-	// Validate annotation allow_rule_ids
+	// Validate annotation allow_rule_ids and deny_rule_ids
+	// Only rule names are accepted (e.g., required-input-added)
 	if cfg.Annotations != nil {
-		for _, ruleID := range cfg.Annotations.AllowRuleIDs {
-			if !ValidRuleIDs[ruleID] {
-				return fmt.Errorf("unknown rule ID in allow_rule_ids: %s", ruleID)
+		for _, ruleSpec := range cfg.Annotations.AllowRuleIDs {
+			if _, ok := validator.ResolveToID(ruleSpec); !ok {
+				return fmt.Errorf("unknown rule in allow_rule_ids: %s", ruleSpec)
 			}
 		}
 
-		for _, ruleID := range cfg.Annotations.DenyRuleIDs {
-			if !ValidRuleIDs[ruleID] {
-				return fmt.Errorf("unknown rule ID in deny_rule_ids: %s", ruleID)
+		for _, ruleSpec := range cfg.Annotations.DenyRuleIDs {
+			if _, ok := validator.ResolveToID(ruleSpec); !ok {
+				return fmt.Errorf("unknown rule in deny_rule_ids: %s", ruleSpec)
 			}
 		}
 	}
@@ -93,7 +147,8 @@ func Validate(cfg *Config) error {
 	return nil
 }
 
-// ValidateRuleID checks if a rule ID is valid
-func ValidateRuleID(ruleID string) bool {
-	return ValidRuleIDs[ruleID]
+// ValidateRuleID checks if a rule ID or name is valid
+func ValidateRuleID(ruleIDOrName string) bool {
+	_, ok := getValidator().ResolveToID(ruleIDOrName)
+	return ok
 }

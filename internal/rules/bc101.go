@@ -48,7 +48,7 @@ func (r *BC101) Documentation() *RuleDoc {
    }
 
 2. If intentionally destroying, use an annotation:
-   # tfbreak:ignore BC101 reason="module replaced"
+   # tfbreak:ignore module-removed-no-moved # module replaced
 
 WARNING: Removing modules without moved blocks will destroy all their resources!`,
 	}

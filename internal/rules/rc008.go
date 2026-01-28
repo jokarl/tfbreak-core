@@ -54,7 +54,7 @@ If sensitive was removed (true -> false):
 - Review security implications before removing
 
 Use an annotation if this change is intentional:
-   # tfbreak:ignore RC008 reason="security classification updated"`,
+   # tfbreak:ignore input-sensitive-changed # security classification updated`,
 	}
 }
 

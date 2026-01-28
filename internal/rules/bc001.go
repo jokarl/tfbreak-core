@@ -51,7 +51,7 @@ func (r *BC001) Documentation() *RuleDoc {
 2. Or ensure all callers are updated to provide the new variable
 
 3. Or use an annotation to suppress if callers are updated in the same change:
-   # tfbreak:ignore BC001 reason="callers updated"
+   # tfbreak:ignore required-input-added # callers updated
    variable "cluster_name" { ... }`,
 	}
 }

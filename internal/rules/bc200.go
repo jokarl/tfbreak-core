@@ -53,7 +53,7 @@ Before making this change:
 3. Consider using a range constraint (e.g., ">= 1.0, < 2.0") for flexibility
 
 Use an annotation if this is intentional:
-   # tfbreak:ignore BC200 reason="minimum version bump for new features"`,
+   # tfbreak:ignore terraform-version-constrained # minimum version bump for new features`,
 	}
 }
 

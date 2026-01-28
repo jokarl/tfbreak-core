@@ -55,7 +55,7 @@ If sensitive was removed (true -> false):
 - Review security implications before removing sensitive marking
 
 Use an annotation if this change is intentional:
-   # tfbreak:ignore RC011 reason="security classification updated"`,
+   # tfbreak:ignore output-sensitive-changed # security classification updated`,
 	}
 }
 
