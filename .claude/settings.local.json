@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__deepwiki__read_wiki_structure",
+      "mcp__deepwiki__ask_question",
+      "Bash(go mod tidy:*)",
+      "Bash(go list:*)",
+      "Bash(go get:*)",
+      "Bash(make build:*)",
+      "Bash(./bin/tfbreak:*)",
+      "Bash(make test:*)",
+      "Bash(go build:*)",
+      "Bash(go test:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "deepwiki"
+  ]
+}
