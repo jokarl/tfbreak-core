@@ -49,7 +49,7 @@ may experience different behavior. Consider:
 1. Documenting the change in your changelog
 2. Notifying callers of the change
 3. Using an annotation if this is intentional:
-   # tfbreak:ignore RC006 reason="intentional upgrade"`,
+   # tfbreak:ignore input-default-changed # intentional upgrade`,
 	}
 }
 

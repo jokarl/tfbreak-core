@@ -48,7 +48,7 @@ func (r *BC100) Documentation() *RuleDoc {
    }
 
 2. If intentionally destroying, use an annotation:
-   # tfbreak:ignore BC100 reason="resource no longer needed"
+   # tfbreak:ignore resource-removed-no-moved # resource no longer needed
 
 WARNING: Removing resources without moved blocks will destroy them!`,
 	}

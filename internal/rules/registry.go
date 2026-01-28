@@ -60,6 +60,31 @@ func (r *Registry) IDs() []string {
 	return result
 }
 
+// GetByName returns a rule by its human-readable name
+func (r *Registry) GetByName(name string) (Rule, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, rule := range r.rules {
+		if rule.Name() == name {
+			return rule, true
+		}
+	}
+	return nil, false
+}
+
+// NameToIDMap returns a map from rule names to rule IDs
+func (r *Registry) NameToIDMap() map[string]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[string]string, len(r.rules))
+	for _, rule := range r.rules {
+		result[rule.Name()] = rule.ID()
+	}
+	return result
+}
+
 // DefaultRegistry is the global rule registry
 var DefaultRegistry = NewRegistry()
 

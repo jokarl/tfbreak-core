@@ -5,6 +5,37 @@ import (
 	"time"
 )
 
+// testResolver is a resolver for testing that maps rule names to IDs
+type testResolver struct {
+	nameToID map[string]string
+}
+
+func (r *testResolver) ResolveRuleID(name string) (string, bool) {
+	if id, ok := r.nameToID[name]; ok {
+		return id, true
+	}
+	return "", false
+}
+
+// newTestResolver creates a test resolver with common rule mappings
+func newTestResolver() *testResolver {
+	return &testResolver{
+		nameToID: map[string]string{
+			"required-input-added":     "BC001",
+			"input-removed":            "BC002",
+			"input-type-changed":       "BC004",
+			"input-default-removed":    "BC005",
+			"output-removed":           "BC009",
+			"resource-removed-no-moved": "BC100",
+			"module-removed-no-moved":  "BC101",
+			"input-default-changed":    "RC006",
+			"input-nullable-changed":   "RC007",
+			"input-sensitive-changed":  "RC008",
+			"output-sensitive-changed": "RC011",
+		},
+	}
+}
+
 func TestParseFile(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -30,9 +61,9 @@ variable "foo" {
 			expected: 1,
 		},
 		{
-			name: "block level ignore",
+			name: "block level ignore with rule name",
 			src: `
-# tfbreak:ignore BC001
+# tfbreak:ignore required-input-added
 variable "foo" {
   type = string
 }
@@ -43,12 +74,12 @@ variable "foo" {
 			name: "multiple annotations",
 			src: `# tfbreak:ignore-file
 
-# tfbreak:ignore BC001
+# tfbreak:ignore required-input-added
 variable "foo" {
   type = string
 }
 
-# tfbreak:ignore BC002,BC003
+# tfbreak:ignore input-removed, input-type-changed
 variable "bar" {
   type = string
 }
@@ -56,8 +87,8 @@ variable "bar" {
 			expected: 3,
 		},
 		{
-			name: "with metadata",
-			src: `# tfbreak:ignore BC001 reason="intentional" ticket="JIRA-123"
+			name: "with trailing comment reason",
+			src: `# tfbreak:ignore required-input-added # intentional change
 variable "foo" {
   type = string
 }
@@ -66,7 +97,16 @@ variable "foo" {
 		},
 		{
 			name: "double slash comment",
-			src: `// tfbreak:ignore BC001
+			src: `// tfbreak:ignore required-input-added
+variable "foo" {
+  type = string
+}
+`,
+			expected: 1,
+		},
+		{
+			name: "ignore all keyword",
+			src: `# tfbreak:ignore all
 variable "foo" {
   type = string
 }
@@ -75,9 +115,11 @@ variable "foo" {
 		},
 	}
 
+	parser := NewParser(newTestResolver())
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			anns, err := ParseFile("test.tf", []byte(tt.src))
+			anns, err := parser.ParseFile("test.tf", []byte(tt.src))
 			if err != nil {
 				t.Fatalf("ParseFile failed: %v", err)
 			}
@@ -89,6 +131,9 @@ variable "foo" {
 }
 
 func TestParseAnnotation(t *testing.T) {
+	resolver := newTestResolver()
+	parser := NewParser(resolver)
+
 	tests := []struct {
 		name           string
 		text           string
@@ -105,41 +150,61 @@ func TestParseAnnotation(t *testing.T) {
 			expectedRules: nil,
 		},
 		{
-			name:          "ignore-file with reason",
-			text:          `tfbreak:ignore-file reason="generated file"`,
-			expectedScope: ScopeFile,
+			name:           "ignore-file with trailing comment reason",
+			text:           `tfbreak:ignore-file # generated file`,
+			expectedScope:  ScopeFile,
 			expectedRules:  nil,
 			expectedReason: "generated file",
 		},
 		{
-			name:          "ignore single rule",
-			text:          "tfbreak:ignore BC001",
+			name:          "ignore single rule by name",
+			text:          "tfbreak:ignore required-input-added",
 			expectedScope: ScopeBlock,
 			expectedRules: []string{"BC001"},
 		},
 		{
-			name:          "ignore multiple rules",
-			text:          "tfbreak:ignore BC001,BC002,BC003",
+			name:          "ignore multiple rules by name",
+			text:          "tfbreak:ignore required-input-added,input-removed,input-type-changed",
 			expectedScope: ScopeBlock,
-			expectedRules: []string{"BC001", "BC002", "BC003"},
+			expectedRules: []string{"BC001", "BC002", "BC004"},
 		},
 		{
-			name:          "ignore with spaces",
-			text:          "tfbreak:ignore BC001, BC002",
+			name:          "ignore with spaces between rules",
+			text:          "tfbreak:ignore required-input-added, input-removed",
 			expectedScope: ScopeBlock,
 			expectedRules: []string{"BC001", "BC002"},
 		},
 		{
-			name:           "full metadata",
-			text:           `tfbreak:ignore BC001 reason="intentional change" ticket="JIRA-123"`,
+			name:           "rule name with trailing comment reason",
+			text:           `tfbreak:ignore required-input-added # intentional change`,
+			expectedScope:  ScopeBlock,
+			expectedRules:  []string{"BC001"},
+			expectedReason: "intentional change",
+		},
+		{
+			name:          "ignore all keyword",
+			text:          "tfbreak:ignore all",
+			expectedScope: ScopeBlock,
+			expectedRules: nil, // empty means match all
+		},
+		{
+			name:           "ignore all with reason",
+			text:           "tfbreak:ignore all # temporary workaround",
+			expectedScope:  ScopeBlock,
+			expectedRules:  nil,
+			expectedReason: "temporary workaround",
+		},
+		{
+			name:           "legacy metadata format still works",
+			text:           `tfbreak:ignore required-input-added reason="intentional change" ticket="JIRA-123"`,
 			expectedScope:  ScopeBlock,
 			expectedRules:  []string{"BC001"},
 			expectedReason: "intentional change",
 			expectedTicket: "JIRA-123",
 		},
 		{
-			name:          "with expires",
-			text:          `tfbreak:ignore BC001 expires="2030-12-31"`,
+			name:          "legacy expires still works",
+			text:          `tfbreak:ignore required-input-added expires="2030-12-31"`,
 			expectedScope: ScopeBlock,
 			expectedRules: []string{"BC001"},
 			hasExpires:    true,
@@ -148,7 +213,7 @@ func TestParseAnnotation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ann, err := parseAnnotation(tt.text, "test.tf", 1)
+			ann, err := parser.parseAnnotation(tt.text, "test.tf", 1)
 			if err != nil {
 				t.Fatalf("parseAnnotation failed: %v", err)
 			}
@@ -188,6 +253,25 @@ func TestParseAnnotation(t *testing.T) {
 	}
 }
 
+func TestParseAnnotation_UnknownRuleName(t *testing.T) {
+	resolver := newTestResolver()
+	parser := NewParser(resolver)
+
+	// Unknown rule names should result in empty RuleIDs (not resolved)
+	ann, err := parser.parseAnnotation("tfbreak:ignore unknown-rule", "test.tf", 1)
+	if err != nil {
+		t.Fatalf("parseAnnotation failed: %v", err)
+	}
+	if ann == nil {
+		t.Fatal("expected annotation, got nil")
+	}
+
+	// Unknown rules are not added to RuleIDs
+	if len(ann.RuleIDs) != 0 {
+		t.Errorf("expected 0 rules for unknown rule name, got %d: %v", len(ann.RuleIDs), ann.RuleIDs)
+	}
+}
+
 func TestAnnotationIsExpired(t *testing.T) {
 	// Not expired
 	future := time.Now().Add(24 * time.Hour)
@@ -217,7 +301,7 @@ func TestAnnotationMatchesRule(t *testing.T) {
 		t.Error("expected empty rules to match any rule")
 	}
 
-	// Specific rules
+	// Specific rules (using resolved IDs)
 	ann = &Annotation{RuleIDs: []string{"BC001", "BC002"}}
 	if !ann.MatchesRule("BC001") {
 		t.Error("expected BC001 to match")

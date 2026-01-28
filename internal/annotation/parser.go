@@ -17,15 +17,33 @@ var (
 	// Matches: tfbreak:ignore or tfbreak:ignore-file
 	directiveRe = regexp.MustCompile(`tfbreak:(ignore-file|ignore)(?:\s+(.*))?$`)
 
-	// Matches rule IDs: BC001,BC002 or BC001, BC002
-	ruleIDRe = regexp.MustCompile(`^([A-Z]{2}[0-9]{3}(?:\s*,\s*[A-Z]{2}[0-9]{3})*)`)
-
-	// Matches metadata: key="value"
+	// Matches metadata: key="value" (legacy format)
 	metadataRe = regexp.MustCompile(`(\w+)="([^"]*)"`)
 )
 
-// ParseFile parses all annotations from an HCL file
+// Parser parses annotations from HCL files
+type Parser struct {
+	resolver RuleResolver
+}
+
+// NewParser creates a new Parser with the given resolver
+func NewParser(resolver RuleResolver) *Parser {
+	if resolver == nil {
+		resolver = DefaultResolver{}
+	}
+	return &Parser{resolver: resolver}
+}
+
+// defaultParser is used for backward compatibility
+var defaultParser = NewParser(nil)
+
+// ParseFile parses all annotations from an HCL file using the default parser
 func ParseFile(filename string, src []byte) ([]*Annotation, error) {
+	return defaultParser.ParseFile(filename, src)
+}
+
+// ParseFile parses all annotations from an HCL file
+func (p *Parser) ParseFile(filename string, src []byte) ([]*Annotation, error) {
 	tokens, diags := hclsyntax.LexConfig(src, filename, hcl.InitialPos)
 	if diags.HasErrors() {
 		// Still try to parse what we can
@@ -50,7 +68,7 @@ func ParseFile(filename string, src []byte) ([]*Annotation, error) {
 			continue
 		}
 
-		ann, err := parseAnnotation(text, filename, token.Range.Start.Line)
+		ann, err := p.parseAnnotation(text, filename, token.Range.Start.Line)
 		if err != nil {
 			// Skip invalid annotations (could log a warning)
 			continue
@@ -63,7 +81,7 @@ func ParseFile(filename string, src []byte) ([]*Annotation, error) {
 }
 
 // parseAnnotation parses a single annotation from comment text
-func parseAnnotation(text, filename string, line int) (*Annotation, error) {
+func (p *Parser) parseAnnotation(text, filename string, line int) (*Annotation, error) {
 	matches := directiveRe.FindStringSubmatch(text)
 	if matches == nil {
 		return nil, nil
@@ -87,24 +105,30 @@ func parseAnnotation(text, filename string, line int) (*Annotation, error) {
 		ann.Scope = ScopeBlock
 	}
 
-	// Parse rule IDs if present
+	// Parse rules and reason if present
 	if rest != "" {
-		ruleMatches := ruleIDRe.FindStringSubmatch(rest)
-		if ruleMatches != nil {
-			ruleStr := ruleMatches[1]
-			// Split by comma and clean up
-			for _, id := range strings.Split(ruleStr, ",") {
-				id = strings.TrimSpace(id)
-				if id != "" {
-					ann.RuleIDs = append(ann.RuleIDs, id)
-				}
-			}
-			// Remove rule IDs from rest
-			rest = strings.TrimSpace(rest[len(ruleMatches[0]):])
+		// Check for trailing comment as reason (tflint style: # tfbreak:ignore rule # reason)
+		// Split on # but only if there's content after the rules
+		var rulesPart, reasonPart string
+		if before, after, found := strings.Cut(rest, "#"); found {
+			rulesPart = strings.TrimSpace(before)
+			reasonPart = strings.TrimSpace(after)
+		} else {
+			rulesPart = rest
 		}
 
-		// Parse metadata
-		metaMatches := metadataRe.FindAllStringSubmatch(rest, -1)
+		// Parse rules (can be 'all', rule IDs like BC001, or rule names like required-input-added)
+		if rulesPart != "" {
+			ann.RuleIDs = p.parseRuleSpecs(rulesPart)
+		}
+
+		// Set reason from trailing comment if present
+		if reasonPart != "" && ann.Reason == "" {
+			ann.Reason = reasonPart
+		}
+
+		// Also check for legacy metadata format in rulesPart (for backward compatibility)
+		metaMatches := metadataRe.FindAllStringSubmatch(rulesPart, -1)
 		for _, m := range metaMatches {
 			key := m[1]
 			value := m[2]
@@ -124,6 +148,40 @@ func parseAnnotation(text, filename string, line int) (*Annotation, error) {
 	}
 
 	return ann, nil
+}
+
+// parseRuleSpecs parses a comma-separated list of rule specs (names or 'all')
+// Only known rule names are resolved; unknown names are ignored
+func (p *Parser) parseRuleSpecs(input string) []string {
+	// First strip any metadata (key="value" pairs)
+	cleaned := metadataRe.ReplaceAllString(input, "")
+	cleaned = strings.TrimSpace(cleaned)
+
+	if cleaned == "" {
+		return nil
+	}
+
+	// Handle 'all' keyword - returns empty slice which means match all rules
+	if cleaned == "all" {
+		return nil
+	}
+
+	var ruleIDs []string
+	for _, spec := range strings.Split(cleaned, ",") {
+		spec = strings.TrimSpace(spec)
+		if spec == "" || spec == "all" {
+			continue
+		}
+
+		// Resolve the spec to a rule ID
+		// Only known rule names are accepted; unknown names are skipped
+		if id, ok := p.resolver.ResolveRuleID(spec); ok {
+			ruleIDs = append(ruleIDs, id)
+		}
+		// Unknown rule names are silently ignored
+	}
+
+	return ruleIDs
 }
 
 // FindBlockStarts finds the starting lines of all blocks in an HCL file

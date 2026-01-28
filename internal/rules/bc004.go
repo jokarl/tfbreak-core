@@ -49,7 +49,7 @@ Consider:
 2. Create a new variable with the new type and deprecate the old one
 3. Coordinate with all callers to update their values
 4. Use an annotation if all callers are updated in the same change:
-   # tfbreak:ignore BC004 reason="coordinated type migration"`,
+   # tfbreak:ignore input-type-changed # coordinated type migration`,
 	}
 }
 

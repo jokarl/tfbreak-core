@@ -44,7 +44,7 @@ func (r *BC009) Documentation() *RuleDoc {
 2. Deprecate the output first before removing
 3. Coordinate with callers to stop using this output
 4. Use an annotation if removal is intentional:
-   # tfbreak:ignore BC009 reason="output consolidated"`,
+   # tfbreak:ignore output-removed # output consolidated`,
 	}
 }
 

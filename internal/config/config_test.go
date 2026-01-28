@@ -77,7 +77,7 @@ annotations {
   require_reason = true
 }
 
-rules "BC001" {
+rules "required-input-added" {
   enabled  = false
   severity = "INFO"
 }
@@ -118,16 +118,16 @@ rules "BC001" {
 	}
 
 	// Check rule config
-	if !cfg.IsRuleEnabled("BC002") {
-		t.Error("expected BC002 to be enabled by default")
+	if !cfg.IsRuleEnabled("input-removed") {
+		t.Error("expected input-removed to be enabled by default")
 	}
-	if cfg.IsRuleEnabled("BC001") {
-		t.Error("expected BC001 to be disabled")
+	if cfg.IsRuleEnabled("required-input-added") {
+		t.Error("expected required-input-added to be disabled")
 	}
 
-	sev := cfg.GetRuleSeverity("BC001", types.SeverityBreaking)
+	sev := cfg.GetRuleSeverity("required-input-added", types.SeverityBreaking)
 	if sev != types.SeverityInfo {
-		t.Errorf("expected BC001 severity INFO, got %s", sev)
+		t.Errorf("expected required-input-added severity INFO, got %s", sev)
 	}
 }
 

@@ -51,7 +51,7 @@ Consider:
 2. Provide a meaningful default value for callers passing null
 3. Coordinate with callers to stop passing null
 4. Use an annotation if this is intentional:
-   # tfbreak:ignore RC007 reason="null no longer valid input"`,
+   # tfbreak:ignore input-nullable-changed # null no longer valid input`,
 	}
 }
 

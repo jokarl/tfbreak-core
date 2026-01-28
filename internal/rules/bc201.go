@@ -64,7 +64,7 @@ Before making this change:
 3. Document the provider version change in your changelog
 
 Use an annotation if this is intentional:
-   # tfbreak:ignore BC201 reason="provider upgrade for new features"`,
+   # tfbreak:ignore provider-version-constrained # provider upgrade for new features`,
 	}
 }
 

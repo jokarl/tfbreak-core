@@ -45,7 +45,7 @@ func (r *BC002) Documentation() *RuleDoc {
 2. Deprecate the variable first (add description noting deprecation)
 3. Coordinate with all callers to remove the variable usage
 4. Use an annotation if removal is intentional:
-   # tfbreak:ignore BC002 reason="deprecated variable removed"`,
+   # tfbreak:ignore input-removed # deprecated variable removed`,
 	}
 }
 

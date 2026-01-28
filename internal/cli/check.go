@@ -251,6 +251,10 @@ func processAnnotations(dir string, filter *pathfilter.Filter, cfg *config.Confi
 	var allAnnotations []*annotation.Annotation
 	blockStarts := make(map[string]map[int]string)
 
+	// Create a resolver from the rules registry
+	resolver := annotation.NewRegistryResolver(rules.DefaultRegistry.NameToIDMap())
+	parser := annotation.NewParser(resolver)
+
 	// Parse annotations from all files
 	err := filter.WalkDir(dir, func(path string, d os.DirEntry) error {
 		src, err := os.ReadFile(path)
@@ -258,7 +262,7 @@ func processAnnotations(dir string, filter *pathfilter.Filter, cfg *config.Confi
 			return err
 		}
 
-		anns, err := annotation.ParseFile(path, src)
+		anns, err := parser.ParseFile(path, src)
 		if err != nil {
 			return err
 		}

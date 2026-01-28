@@ -47,7 +47,7 @@ func (r *BC005) Documentation() *RuleDoc {
 1. Keep the default value for backward compatibility
 2. Update all callers to explicitly provide the variable
 3. Use an annotation if this is intentional:
-   # tfbreak:ignore BC005 reason="callers updated"`,
+   # tfbreak:ignore input-default-removed # callers updated`,
 	}
 }
 
