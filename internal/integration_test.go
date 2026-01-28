@@ -57,6 +57,35 @@ func TestScenario_NoChanges(t *testing.T) {
 	runScenario(t, "no_changes", []string{})
 }
 
+func TestScenario_BC004_TypeChanged(t *testing.T) {
+	runScenario(t, "bc004_type_changed", []string{"BC004"})
+}
+
+func TestScenario_BC004_AnyToSpecific(t *testing.T) {
+	// any -> specific type is non-breaking, should have no findings
+	runScenario(t, "bc004_any_to_specific", []string{})
+}
+
+func TestScenario_RC007_NullableChanged(t *testing.T) {
+	runScenario(t, "rc007_nullable_changed", []string{"RC007"})
+}
+
+func TestScenario_RC008_SensitiveChanged(t *testing.T) {
+	runScenario(t, "rc008_sensitive_changed", []string{"RC008"})
+}
+
+func TestScenario_RC011_OutputSensitiveChanged(t *testing.T) {
+	runScenario(t, "rc011_output_sensitive_changed", []string{"RC011"})
+}
+
+func TestScenario_BC200_VersionAdded(t *testing.T) {
+	runScenario(t, "bc200_version_added", []string{"BC200"})
+}
+
+func TestScenario_BC201_ProviderRemoved(t *testing.T) {
+	runScenario(t, "bc201_provider_removed", []string{"BC201"})
+}
+
 func runScenario(t *testing.T, name string, expectedRuleIDs []string) {
 	t.Helper()
 

@@ -39,9 +39,20 @@ func Load(dir string) (*types.ModuleSnapshot, error) {
 	// Create snapshot
 	snapshot := types.NewModuleSnapshot(absDir)
 
+	// Parse nullable attributes (not supported by terraform-config-inspect)
+	nullableMap, err := parseNullableAttributes(absDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse nullable attributes: %w", err)
+	}
+
 	// Extract variables
 	for name, v := range module.Variables {
-		snapshot.Variables[name] = convertVariable(v)
+		varSig := convertVariable(v)
+		// Merge nullable attribute from direct HCL parsing
+		if nullable, exists := nullableMap[name]; exists {
+			varSig.Nullable = nullable
+		}
+		snapshot.Variables[name] = varSig
 	}
 
 	// Extract outputs
