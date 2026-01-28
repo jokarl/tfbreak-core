@@ -29,6 +29,28 @@ func (r *BC005) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC005) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `variable "instance_type" {
+  type    = string
+  default = "t3.micro"  # Has default - optional
+}`,
+		ExampleNew: `variable "instance_type" {
+  type = string
+  # No default - now required!
+}`,
+		Remediation: `To fix this issue, either:
+1. Keep the default value for backward compatibility
+2. Update all callers to explicitly provide the variable
+3. Use an annotation if this is intentional:
+   # tfbreak:ignore BC005 reason="callers updated"`,
+	}
+}
+
 func (r *BC005) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

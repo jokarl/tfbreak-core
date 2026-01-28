@@ -9,8 +9,16 @@
   },
   "changelog-sections": [
     {
-      "type": "deps",
-      "section": "Dependencies",
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "chore",
+      "section": "Chores",
       "hidden": false
     }
   ],

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/jokarl/tfbreak-core/internal/pathfilter"
 	"github.com/jokarl/tfbreak-core/internal/types"
 )
 
@@ -138,4 +139,89 @@ func firstOrEmpty(s []string) string {
 		return s[0]
 	}
 	return ""
+}
+
+// LoadWithFilter loads a Terraform module with path filtering applied.
+// Note: terraform-config-inspect doesn't support per-file filtering,
+// so this function uses the filter to determine which files' declarations
+// should be included in the snapshot.
+func LoadWithFilter(dir string, filter *pathfilter.Filter) (*types.ModuleSnapshot, error) {
+	// Load the full module first
+	snapshot, err := Load(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// If filter is nil, return unfiltered snapshot
+	if filter == nil {
+		return snapshot, nil
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter declarations based on their source file locations
+	filteredVars := make(map[string]*types.VariableSignature)
+	for name, v := range snapshot.Variables {
+		if shouldIncludeFile(absDir, v.DeclRange.Filename, filter) {
+			filteredVars[name] = v
+		}
+	}
+	snapshot.Variables = filteredVars
+
+	filteredOutputs := make(map[string]*types.OutputSignature)
+	for name, o := range snapshot.Outputs {
+		if shouldIncludeFile(absDir, o.DeclRange.Filename, filter) {
+			filteredOutputs[name] = o
+		}
+	}
+	snapshot.Outputs = filteredOutputs
+
+	filteredResources := make(map[string]*types.ResourceSignature)
+	for addr, r := range snapshot.Resources {
+		if shouldIncludeFile(absDir, r.DeclRange.Filename, filter) {
+			filteredResources[addr] = r
+		}
+	}
+	snapshot.Resources = filteredResources
+
+	filteredModules := make(map[string]*types.ModuleCallSignature)
+	for name, m := range snapshot.Modules {
+		if shouldIncludeFile(absDir, m.DeclRange.Filename, filter) {
+			filteredModules[name] = m
+		}
+	}
+	snapshot.Modules = filteredModules
+
+	// Filter moved blocks
+	var filteredMoved []*types.MovedBlock
+	for _, moved := range snapshot.MovedBlocks {
+		if shouldIncludeFile(absDir, moved.DeclRange.Filename, filter) {
+			filteredMoved = append(filteredMoved, moved)
+		}
+	}
+	snapshot.MovedBlocks = filteredMoved
+
+	return snapshot, nil
+}
+
+// shouldIncludeFile checks if a file should be included based on the filter
+func shouldIncludeFile(baseDir, filename string, filter *pathfilter.Filter) bool {
+	// Get relative path from base directory
+	relPath, err := filepath.Rel(baseDir, filename)
+	if err != nil {
+		return true // Include if we can't determine
+	}
+
+	// Normalize path separators for pattern matching
+	relPath = filepath.ToSlash(relPath)
+
+	match, err := filter.MatchFile(relPath)
+	if err != nil {
+		return true // Include if we can't match
+	}
+
+	return match
 }

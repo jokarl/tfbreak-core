@@ -29,6 +29,31 @@ func (r *BC100) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC100) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `resource "aws_s3_bucket" "logs" {
+  bucket = "my-logs-bucket"
+}`,
+		ExampleNew: `# Resource was removed without a moved block
+# This will DESTROY the S3 bucket!`,
+		Remediation: `To fix this issue, either:
+1. Add a moved block to preserve state:
+   moved {
+     from = aws_s3_bucket.logs
+     to   = aws_s3_bucket.application_logs
+   }
+
+2. If intentionally destroying, use an annotation:
+   # tfbreak:ignore BC100 reason="resource no longer needed"
+
+WARNING: Removing resources without moved blocks will destroy them!`,
+	}
+}
+
 func (r *BC100) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

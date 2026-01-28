@@ -29,6 +29,25 @@ func (r *BC009) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC009) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `output "vpc_id" {
+  value = aws_vpc.main.id
+}`,
+		ExampleNew: `# Output was removed`,
+		Remediation: `To fix this issue, either:
+1. Keep the output for backward compatibility (even if internal implementation changes)
+2. Deprecate the output first before removing
+3. Coordinate with callers to stop using this output
+4. Use an annotation if removal is intentional:
+   # tfbreak:ignore BC009 reason="output consolidated"`,
+	}
+}
+
 func (r *BC009) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 

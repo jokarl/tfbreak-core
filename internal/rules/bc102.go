@@ -29,6 +29,37 @@ func (r *BC102) DefaultSeverity() types.Severity {
 	return types.SeverityBreaking
 }
 
+func (r *BC102) Documentation() *RuleDoc {
+	return &RuleDoc{
+		ID:              r.ID(),
+		Name:            r.Name(),
+		DefaultSeverity: r.DefaultSeverity(),
+		Description:     r.Description(),
+		ExampleOld: `resource "aws_s3_bucket" "logs" {
+  bucket = "my-logs"
+}`,
+		ExampleNew: `# Invalid: cannot move resource to module
+moved {
+  from = aws_s3_bucket.logs
+  to   = module.storage  # Type mismatch!
+}`,
+		Remediation: `Fix the moved block to have matching types:
+1. Resource to resource:
+   moved {
+     from = aws_s3_bucket.logs
+     to   = aws_s3_bucket.application_logs
+   }
+
+2. Module to module:
+   moved {
+     from = module.old_vpc
+     to   = module.network
+   }
+
+Moved blocks cannot change address types (resource ↔ module).`,
+	}
+}
+
 func (r *BC102) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding
 
