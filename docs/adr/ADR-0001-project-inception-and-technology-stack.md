@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-01-28
 decision-makers: [project maintainers]
 consulted: []
