@@ -71,8 +71,23 @@ type VariableSignature struct {
 	// Required is true if the variable has no default value
 	Required bool `json:"required"`
 
+	// ValidationCount is the number of validation blocks on this variable
+	ValidationCount int `json:"validation_count,omitempty"`
+
+	// Validations contains the validation blocks for this variable
+	Validations []ValidationBlock `json:"validations,omitempty"`
+
 	// DeclRange is the source location of the declaration
 	DeclRange FileRange `json:"pos"`
+}
+
+// ValidationBlock represents a validation block on a variable
+type ValidationBlock struct {
+	// Condition is the raw condition expression as a string
+	Condition string `json:"condition"`
+
+	// ErrorMessage is the error message shown when validation fails
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // HasDefault returns true if the variable has a default value

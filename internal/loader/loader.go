@@ -45,12 +45,23 @@ func Load(dir string) (*types.ModuleSnapshot, error) {
 		return nil, fmt.Errorf("failed to parse nullable attributes: %w", err)
 	}
 
+	// Parse validation blocks (not supported by terraform-config-inspect)
+	validationMap, err := parseValidationBlocks(absDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse validation blocks: %w", err)
+	}
+
 	// Extract variables
 	for name, v := range module.Variables {
 		varSig := convertVariable(v)
 		// Merge nullable attribute from direct HCL parsing
 		if nullable, exists := nullableMap[name]; exists {
 			varSig.Nullable = nullable
+		}
+		// Merge validation blocks from direct HCL parsing
+		if validations, exists := validationMap[name]; exists {
+			varSig.Validations = validations
+			varSig.ValidationCount = len(validations)
 		}
 		snapshot.Variables[name] = varSig
 	}
