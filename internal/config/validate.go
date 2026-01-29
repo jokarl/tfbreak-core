@@ -69,6 +69,8 @@ var ValidRuleNames = map[string]string{
 	"output-sensitive-changed":      "RC011",
 	"terraform-version-constrained": "BC200",
 	"provider-version-constrained":  "BC201",
+	"module-source-changed":         "RC300",
+	"module-version-changed":        "RC301",
 }
 
 // getValidator returns the current rule validator
