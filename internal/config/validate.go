@@ -71,6 +71,8 @@ var ValidRuleNames = map[string]string{
 	"provider-version-constrained":  "BC201",
 	"module-source-changed":         "RC300",
 	"module-version-changed":        "RC301",
+	"validation-added":              "RC012",
+	"validation-value-removed":      "RC013",
 }
 
 // getValidator returns the current rule validator
