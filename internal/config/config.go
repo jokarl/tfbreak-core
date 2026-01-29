@@ -16,12 +16,13 @@ import (
 
 // Config represents the tfbreak configuration
 type Config struct {
-	Version     int                `hcl:"version,attr"`
-	Paths       *PathsConfig       `hcl:"paths,block"`
-	Output      *OutputConfig      `hcl:"output,block"`
-	Policy      *PolicyConfig      `hcl:"policy,block"`
-	Annotations *AnnotationsConfig `hcl:"annotations,block"`
-	Rules       []*RuleConfig      `hcl:"rules,block"`
+	Version         int                     `hcl:"version,attr"`
+	Paths           *PathsConfig            `hcl:"paths,block"`
+	Output          *OutputConfig           `hcl:"output,block"`
+	Policy          *PolicyConfig           `hcl:"policy,block"`
+	Annotations     *AnnotationsConfig      `hcl:"annotations,block"`
+	RenameDetection *RenameDetectionConfig  `hcl:"rename_detection,block"`
+	Rules           []*RuleConfig           `hcl:"rules,block"`
 
 	// Internal: path to the loaded config file (empty if using defaults)
 	configPath string
@@ -59,6 +60,15 @@ type RuleConfig struct {
 	Enabled  *bool   `hcl:"enabled,attr"`
 	Severity *string `hcl:"severity,attr"`
 }
+
+// RenameDetectionConfig defines settings for rename heuristic rules (BC003, RC003, BC010)
+type RenameDetectionConfig struct {
+	Enabled             *bool    `hcl:"enabled,attr"`
+	SimilarityThreshold *float64 `hcl:"similarity_threshold,attr"`
+}
+
+// DefaultSimilarityThreshold is the default threshold for rename detection
+const DefaultSimilarityThreshold = 0.85
 
 // ConfigPath returns the path to the loaded config file, or empty if using defaults
 func (c *Config) ConfigPath() string {
@@ -103,6 +113,22 @@ func (c *Config) IsAnnotationsEnabled() bool {
 		return true // enabled by default
 	}
 	return *c.Annotations.Enabled
+}
+
+// IsRenameDetectionEnabled returns whether rename detection is enabled
+func (c *Config) IsRenameDetectionEnabled() bool {
+	if c.RenameDetection == nil || c.RenameDetection.Enabled == nil {
+		return false // disabled by default (opt-in)
+	}
+	return *c.RenameDetection.Enabled
+}
+
+// GetSimilarityThreshold returns the configured similarity threshold for rename detection
+func (c *Config) GetSimilarityThreshold() float64 {
+	if c.RenameDetection == nil || c.RenameDetection.SimilarityThreshold == nil {
+		return DefaultSimilarityThreshold
+	}
+	return *c.RenameDetection.SimilarityThreshold
 }
 
 // Load loads configuration from the specified path or searches for it
@@ -237,5 +263,16 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Annotations == nil {
 		cfg.Annotations = defaults.Annotations
+	}
+
+	if cfg.RenameDetection == nil {
+		cfg.RenameDetection = defaults.RenameDetection
+	} else {
+		if cfg.RenameDetection.Enabled == nil {
+			cfg.RenameDetection.Enabled = defaults.RenameDetection.Enabled
+		}
+		if cfg.RenameDetection.SimilarityThreshold == nil {
+			cfg.RenameDetection.SimilarityThreshold = defaults.RenameDetection.SimilarityThreshold
+		}
 	}
 }

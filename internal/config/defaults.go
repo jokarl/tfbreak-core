@@ -3,6 +3,8 @@ package config
 // Default returns the default configuration
 func Default() *Config {
 	enabled := true
+	renameDisabled := false
+	defaultThreshold := DefaultSimilarityThreshold
 	return &Config{
 		Version: 1,
 		Paths: &PathsConfig{
@@ -22,6 +24,10 @@ func Default() *Config {
 			RequireReason: false,
 			AllowRuleIDs:  []string{},
 			DenyRuleIDs:   []string{},
+		},
+		RenameDetection: &RenameDetectionConfig{
+			Enabled:             &renameDisabled,
+			SimilarityThreshold: &defaultThreshold,
 		},
 		Rules: []*RuleConfig{},
 	}
@@ -83,6 +89,17 @@ annotations {
   # Never allow ignoring these rule IDs
   deny_rule_ids = []
 }
+
+# Rename detection settings (opt-in)
+# Enables heuristic rules that detect renamed variables and outputs
+# rename_detection {
+#   # Enable rename detection (default: false)
+#   enabled = true
+#
+#   # Minimum similarity threshold for rename detection (default: 0.85)
+#   # Value between 0.0 and 1.0, higher = stricter matching
+#   similarity_threshold = 0.85
+# }
 
 # Per-rule configuration
 # Uncomment and modify to customize rule behavior

@@ -28,6 +28,10 @@ type Finding struct {
 
 	// IgnoreReason is the reason provided in the ignore annotation
 	IgnoreReason string `json:"ignore_reason,omitempty"`
+
+	// Metadata contains rule-specific metadata for advanced processing
+	// Used by rename detection rules to store old/new names for suppression logic
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // NewFinding creates a new Finding with the given parameters
@@ -55,6 +59,15 @@ func (f *Finding) WithOldLocation(loc *FileRange) *Finding {
 // WithNewLocation sets the new location and returns the finding for chaining
 func (f *Finding) WithNewLocation(loc *FileRange) *Finding {
 	f.NewLocation = loc
+	return f
+}
+
+// WithMetadata sets metadata and returns the finding for chaining
+func (f *Finding) WithMetadata(key, value string) *Finding {
+	if f.Metadata == nil {
+		f.Metadata = make(map[string]string)
+	}
+	f.Metadata[key] = value
 	return f
 }
 

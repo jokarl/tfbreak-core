@@ -56,23 +56,26 @@ func (f fallbackValidator) ResolveToID(nameOrID string) (string, bool) {
 var ValidRuleNames = map[string]string{
 	"required-input-added":          "BC001",
 	"input-removed":                 "BC002",
+	"input-renamed":                 "BC003",
 	"input-type-changed":            "BC004",
 	"input-default-removed":         "BC005",
 	"output-removed":                "BC009",
+	"output-renamed":                "BC010",
 	"resource-removed-no-moved":     "BC100",
 	"module-removed-no-moved":       "BC101",
 	"invalid-moved-block":           "BC102",
 	"conflicting-moved":             "BC103",
+	"input-renamed-optional":        "RC003",
 	"input-default-changed":         "RC006",
 	"input-nullable-changed":        "RC007",
 	"input-sensitive-changed":       "RC008",
 	"output-sensitive-changed":      "RC011",
+	"validation-added":              "RC012",
+	"validation-value-removed":      "RC013",
 	"terraform-version-constrained": "BC200",
 	"provider-version-constrained":  "BC201",
 	"module-source-changed":         "RC300",
 	"module-version-changed":        "RC301",
-	"validation-added":              "RC012",
-	"validation-value-removed":      "RC013",
 }
 
 // getValidator returns the current rule validator
@@ -114,6 +117,14 @@ func Validate(cfg *Config) error {
 	if cfg.Policy != nil && cfg.Policy.FailOn != "" {
 		if _, err := types.ParseSeverity(cfg.Policy.FailOn); err != nil {
 			return fmt.Errorf("invalid fail_on severity: %s (must be 'BREAKING', 'RISKY', or 'INFO')", cfg.Policy.FailOn)
+		}
+	}
+
+	// Validate rename detection config
+	if cfg.RenameDetection != nil && cfg.RenameDetection.SimilarityThreshold != nil {
+		threshold := *cfg.RenameDetection.SimilarityThreshold
+		if threshold < 0.0 || threshold > 1.0 {
+			return fmt.Errorf("invalid similarity_threshold: %f (must be between 0.0 and 1.0)", threshold)
 		}
 	}
 

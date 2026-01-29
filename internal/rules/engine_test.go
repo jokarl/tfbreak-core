@@ -106,3 +106,187 @@ func TestEngineCheckPass(t *testing.T) {
 		t.Errorf("Result = %q, want PASS", result.Result)
 	}
 }
+
+func TestEngine_BC003_SuppressesBC001_BC002(t *testing.T) {
+	// Enable rename detection
+	SetRenameDetectionSettings(&RenameDetectionSettings{
+		Enabled:             true,
+		SimilarityThreshold: 0.70,
+	})
+	defer SetRenameDetectionSettings(DefaultRenameDetectionSettings())
+
+	engine := NewDefaultEngine()
+
+	old := types.NewModuleSnapshot("/old")
+	old.Variables["api_key"] = &types.VariableSignature{
+		Name:     "api_key",
+		Default:  nil,
+		Required: true,
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Variables["api_key_v2"] = &types.VariableSignature{
+		Name:     "api_key_v2",
+		Default:  nil,
+		Required: true, // BC001 checks Required field
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	// Should only have BC003, not BC001 or BC002
+	ruleIDs := make(map[string]int)
+	for _, f := range findings {
+		ruleIDs[f.RuleID]++
+	}
+
+	if ruleIDs["BC003"] != 1 {
+		t.Errorf("Expected exactly 1 BC003 finding, got %d", ruleIDs["BC003"])
+	}
+	if ruleIDs["BC001"] != 0 {
+		t.Errorf("Expected BC001 to be suppressed, got %d findings", ruleIDs["BC001"])
+	}
+	if ruleIDs["BC002"] != 0 {
+		t.Errorf("Expected BC002 to be suppressed, got %d findings", ruleIDs["BC002"])
+	}
+}
+
+func TestEngine_RC003_SuppressesBC002(t *testing.T) {
+	// Enable rename detection
+	SetRenameDetectionSettings(&RenameDetectionSettings{
+		Enabled:             true,
+		SimilarityThreshold: 0.50,
+	})
+	defer SetRenameDetectionSettings(DefaultRenameDetectionSettings())
+
+	engine := NewDefaultEngine()
+
+	defaultVal := `"30s"`
+	old := types.NewModuleSnapshot("/old")
+	old.Variables["timeout"] = &types.VariableSignature{
+		Name:    "timeout",
+		Default: &defaultVal, // Optional
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Variables["timeout_ms"] = &types.VariableSignature{
+		Name:    "timeout_ms",
+		Default: &defaultVal, // Optional
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	// Should only have RC003, not BC002
+	ruleIDs := make(map[string]int)
+	for _, f := range findings {
+		ruleIDs[f.RuleID]++
+	}
+
+	if ruleIDs["RC003"] != 1 {
+		t.Errorf("Expected exactly 1 RC003 finding, got %d", ruleIDs["RC003"])
+	}
+	if ruleIDs["BC002"] != 0 {
+		t.Errorf("Expected BC002 to be suppressed, got %d findings", ruleIDs["BC002"])
+	}
+}
+
+func TestEngine_BC010_SuppressesBC009(t *testing.T) {
+	// Enable rename detection
+	SetRenameDetectionSettings(&RenameDetectionSettings{
+		Enabled:             true,
+		SimilarityThreshold: 0.50,
+	})
+	defer SetRenameDetectionSettings(DefaultRenameDetectionSettings())
+
+	engine := NewDefaultEngine()
+
+	old := types.NewModuleSnapshot("/old")
+	old.Outputs["vpc_id"] = &types.OutputSignature{
+		Name: "vpc_id",
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Outputs["main_vpc_id"] = &types.OutputSignature{
+		Name: "main_vpc_id",
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	// Should only have BC010, not BC009
+	ruleIDs := make(map[string]int)
+	for _, f := range findings {
+		ruleIDs[f.RuleID]++
+	}
+
+	if ruleIDs["BC010"] != 1 {
+		t.Errorf("Expected exactly 1 BC010 finding, got %d", ruleIDs["BC010"])
+	}
+	if ruleIDs["BC009"] != 0 {
+		t.Errorf("Expected BC009 to be suppressed, got %d findings", ruleIDs["BC009"])
+	}
+}
+
+func TestEngine_RenameDetectionDisabled_NoSuppression(t *testing.T) {
+	// Ensure rename detection is disabled
+	SetRenameDetectionSettings(&RenameDetectionSettings{
+		Enabled:             false,
+		SimilarityThreshold: 0.70,
+	})
+	defer SetRenameDetectionSettings(DefaultRenameDetectionSettings())
+
+	engine := NewDefaultEngine()
+
+	old := types.NewModuleSnapshot("/old")
+	old.Variables["api_key"] = &types.VariableSignature{
+		Name:     "api_key",
+		Default:  nil,
+		Required: true,
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Variables["api_key_v2"] = &types.VariableSignature{
+		Name:     "api_key_v2",
+		Default:  nil,
+		Required: true, // BC001 checks Required field
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	// Should have BC001 and BC002, no BC003
+	ruleIDs := make(map[string]int)
+	for _, f := range findings {
+		ruleIDs[f.RuleID]++
+	}
+
+	if ruleIDs["BC003"] != 0 {
+		t.Errorf("Expected no BC003 findings when disabled, got %d", ruleIDs["BC003"])
+	}
+	if ruleIDs["BC001"] != 1 {
+		t.Errorf("Expected 1 BC001 finding, got %d", ruleIDs["BC001"])
+	}
+	if ruleIDs["BC002"] != 1 {
+		t.Errorf("Expected 1 BC002 finding, got %d", ruleIDs["BC002"])
+	}
+}
+
+func TestExtractQuotedName(t *testing.T) {
+	tests := []struct {
+		message  string
+		expected string
+	}{
+		{`Variable "foo" was removed`, "foo"},
+		{`New required variable "bar" has no default`, "bar"},
+		{`Output "baz" was removed`, "baz"},
+		{`No quotes here`, ""},
+		{`One "quote`, ""},
+		{`Empty "" quotes`, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.message, func(t *testing.T) {
+			result := extractQuotedName(tt.message)
+			if result != tt.expected {
+				t.Errorf("extractQuotedName(%q) = %q, want %q", tt.message, result, tt.expected)
+			}
+		})
+	}
+}
