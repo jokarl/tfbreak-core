@@ -94,12 +94,46 @@ func TestScenario_RC013_ValidationValueRemoved(t *testing.T) {
 	runScenario(t, "rc013_validation_value_removed", []string{"RC013"})
 }
 
+func TestScenario_BC003_InputRenamed(t *testing.T) {
+	// BC003 requires rename detection to be enabled
+	runScenarioWithRenameDetection(t, "bc003_input_renamed", []string{"BC003"}, 0.70)
+}
+
+func TestScenario_RC003_InputRenamedOptional(t *testing.T) {
+	// RC003 requires rename detection to be enabled
+	runScenarioWithRenameDetection(t, "rc003_input_renamed_optional", []string{"RC003"}, 0.50)
+}
+
+func TestScenario_BC010_OutputRenamed(t *testing.T) {
+	// BC010 requires rename detection to be enabled
+	runScenarioWithRenameDetection(t, "bc010_output_renamed", []string{"BC010"}, 0.50)
+}
+
 func runScenario(t *testing.T, name string, expectedRuleIDs []string) {
+	t.Helper()
+	runScenarioWithOptions(t, name, expectedRuleIDs, false, 0)
+}
+
+func runScenarioWithRenameDetection(t *testing.T, name string, expectedRuleIDs []string, threshold float64) {
+	t.Helper()
+	runScenarioWithOptions(t, name, expectedRuleIDs, true, threshold)
+}
+
+func runScenarioWithOptions(t *testing.T, name string, expectedRuleIDs []string, enableRenameDetection bool, threshold float64) {
 	t.Helper()
 
 	baseDir := getTestdataDir()
 	oldDir := filepath.Join(baseDir, name, "old")
 	newDir := filepath.Join(baseDir, name, "new")
+
+	// Enable rename detection if requested
+	if enableRenameDetection {
+		rules.SetRenameDetectionSettings(&rules.RenameDetectionSettings{
+			Enabled:             true,
+			SimilarityThreshold: threshold,
+		})
+		defer rules.SetRenameDetectionSettings(rules.DefaultRenameDetectionSettings())
+	}
 
 	// Load configs
 	oldSnap, err := loader.Load(oldDir)

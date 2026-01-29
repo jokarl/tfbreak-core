@@ -12,10 +12,25 @@ This document describes all rules implemented by tfbreak for detecting breaking 
 
 | Category | ID Range | Description |
 |----------|----------|-------------|
-| Variable Rules | BC001-BC005, RC006-RC008, RC012-RC013 | Changes to input variables |
-| Output Rules | BC009, RC011 | Changes to output values |
+| Variable Rules | BC001-BC005, RC003, RC006-RC008, RC012-RC013 | Changes to input variables |
+| Output Rules | BC009-BC010, RC011 | Changes to output values |
 | Resource/Module Rules | BC100-BC103, RC300-RC301 | Changes to resources and module calls |
 | Version Rules | BC200-BC201 | Changes to version constraints |
+
+## Rename Detection (Opt-in)
+
+tfbreak can detect when variables or outputs are renamed rather than simply removed and added. This provides clearer feedback than separate "removed" and "added" findings.
+
+**To enable rename detection**, add this to your `.tfbreak.hcl`:
+
+```hcl
+rename_detection {
+  enabled              = true
+  similarity_threshold = 0.85  # Default threshold (0.0-1.0)
+}
+```
+
+When enabled, rename rules suppress the related removal/addition rules for matched pairs.
 
 ---
 
@@ -73,6 +88,76 @@ variable "legacy_flag" {
 1. Keep the variable but mark it as deprecated in the description
 2. Use a validation block to warn users the variable is ignored
 3. Use `# tfbreak:ignore input-removed` if removal is intentional
+
+---
+
+### BC003 - input-renamed (Opt-in)
+
+**Severity:** BREAKING
+
+**Description:** A required variable was renamed, which will break callers using the old name.
+
+**Trigger Condition:** A required variable (no default) was removed, and a new required variable with a similar name was added. Requires rename detection to be enabled.
+
+**Why it breaks:** Callers using the old variable name will get an error: "An argument named X is not expected here."
+
+**Example:**
+```hcl
+# OLD
+variable "api_key" {
+  type        = string
+  description = "API key for authentication"
+}
+
+# NEW - renamed to api_key_v2
+variable "api_key_v2" {
+  type        = string
+  description = "API key for authentication (v2)"
+}
+```
+
+**Remediation:**
+1. Keep the old variable name for backward compatibility
+2. Add the old variable as an alias that passes through to the new one
+3. Coordinate with all callers to update to the new variable name
+4. Use `# tfbreak:ignore input-renamed` if the rename is intentional and coordinated
+
+**Note:** This rule only fires when rename detection is enabled. When it fires, it suppresses BC001 and BC002 for the matched variable pair.
+
+---
+
+### RC003 - input-renamed-optional (Opt-in)
+
+**Severity:** RISKY
+
+**Description:** An optional variable was renamed, which may break callers that explicitly set the old name.
+
+**Trigger Condition:** An optional variable (has default) was removed, and a new optional variable with a similar name was added. Requires rename detection to be enabled.
+
+**Why it's risky:** Callers who explicitly set the old variable will get an error. Callers who relied on the default are not affected.
+
+**Example:**
+```hcl
+# OLD
+variable "timeout" {
+  type    = string
+  default = "30s"
+}
+
+# NEW - renamed to timeout_ms
+variable "timeout_ms" {
+  type    = string
+  default = "30000"
+}
+```
+
+**Remediation:**
+1. Keep the old variable name for backward compatibility
+2. Add the old variable as a deprecated alias
+3. Coordinate with callers who explicitly set this variable
+4. Use `# tfbreak:ignore input-renamed-optional` if this is intentional
+
+**Note:** This rule only fires when rename detection is enabled. When it fires, it suppresses BC002 for the matched variable.
 
 ---
 
@@ -335,6 +420,39 @@ output "instance_ip" {
 1. Keep the output but mark it deprecated
 2. Return a placeholder value during deprecation period
 3. Use `# tfbreak:ignore output-removed` if removal is intentional
+
+---
+
+### BC010 - output-renamed (Opt-in)
+
+**Severity:** BREAKING
+
+**Description:** An output was renamed, which will break callers referencing the old name.
+
+**Trigger Condition:** An output was removed, and a new output with a similar name was added. Requires rename detection to be enabled.
+
+**Why it breaks:** Consumers referencing the old output (e.g., `module.foo.old_output`) will get errors.
+
+**Example:**
+```hcl
+# OLD
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+# NEW - renamed to main_vpc_id
+output "main_vpc_id" {
+  value = aws_vpc.main.id
+}
+```
+
+**Remediation:**
+1. Keep the old output name for backward compatibility
+2. Add the old output as an alias pointing to the same value
+3. Coordinate with all callers to update to the new output name
+4. Use `# tfbreak:ignore output-renamed` if the rename is intentional and coordinated
+
+**Note:** This rule only fires when rename detection is enabled. When it fires, it suppresses BC009 for the matched output.
 
 ---
 
