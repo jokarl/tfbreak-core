@@ -38,6 +38,9 @@ var (
 	// Annotation flags
 	noAnnotationsFlag bool
 	requireReasonFlag bool
+
+	// Output enhancement flags
+	includeRemediationFlag bool
 )
 
 var checkCmd = &cobra.Command{
@@ -74,6 +77,9 @@ func init() {
 	// Annotation flags
 	checkCmd.Flags().BoolVar(&noAnnotationsFlag, "no-annotations", false, "Disable annotation processing")
 	checkCmd.Flags().BoolVar(&requireReasonFlag, "require-reason", false, "Require reason in annotations")
+
+	// Output enhancement flags
+	checkCmd.Flags().BoolVar(&includeRemediationFlag, "include-remediation", false, "Include remediation guidance for each finding")
 }
 
 func runCheck(cmd *cobra.Command, args []string) error {
@@ -114,8 +120,11 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	engine := rules.NewDefaultEngine()
 	configureEngine(engine, cfg)
 
-	// Run rules
-	result := engine.Check(oldDir, newDir, oldSnapshot, newSnapshot, failOn)
+	// Run rules with options
+	checkOpts := rules.CheckOptions{
+		IncludeRemediation: includeRemediationFlag,
+	}
+	result := engine.CheckWithOptions(oldDir, newDir, oldSnapshot, newSnapshot, failOn, checkOpts)
 
 	// Process annotations if enabled
 	if cfg.IsAnnotationsEnabled() && !noAnnotationsFlag {
