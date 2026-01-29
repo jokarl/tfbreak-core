@@ -194,15 +194,38 @@ func extractQuotedName(message string) string {
 	return ""
 }
 
+// CheckOptions configures the behavior of the Check method
+type CheckOptions struct {
+	// IncludeRemediation populates remediation text for each finding
+	IncludeRemediation bool
+}
+
 // Check runs the engine and returns a complete CheckResult
 func (e *Engine) Check(oldPath, newPath string, old, new *types.ModuleSnapshot, failOn types.Severity) *types.CheckResult {
+	return e.CheckWithOptions(oldPath, newPath, old, new, failOn, CheckOptions{})
+}
+
+// CheckWithOptions runs the engine with additional options
+func (e *Engine) CheckWithOptions(oldPath, newPath string, old, new *types.ModuleSnapshot, failOn types.Severity, opts CheckOptions) *types.CheckResult {
 	result := types.NewCheckResult(oldPath, newPath, failOn)
 
 	findings := e.Evaluate(old, new)
 	for _, f := range findings {
+		// Populate remediation if requested
+		if opts.IncludeRemediation {
+			e.populateRemediation(f)
+		}
 		result.AddFinding(f)
 	}
 
 	result.Compute()
 	return result
+}
+
+// populateRemediation adds remediation text to a finding from its rule's documentation
+func (e *Engine) populateRemediation(f *types.Finding) {
+	doc := GetDocumentation(f.RuleID)
+	if doc != nil && doc.Remediation != "" {
+		f.Remediation = doc.Remediation
+	}
 }

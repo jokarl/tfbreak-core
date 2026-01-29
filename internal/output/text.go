@@ -65,7 +65,22 @@ func (r *TextRenderer) renderFinding(w io.Writer, f *types.Finding) {
 		}
 	}
 
+	// Remediation (if included)
+	if f.Remediation != "" {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "  Remediation:")
+		r.renderIndented(w, f.Remediation, "    ")
+	}
+
 	fmt.Fprintln(w)
+}
+
+// renderIndented writes text with the given prefix on each line
+func (r *TextRenderer) renderIndented(w io.Writer, text, prefix string) {
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		fmt.Fprintf(w, "%s%s\n", prefix, line)
+	}
 }
 
 func (r *TextRenderer) renderSummary(w io.Writer, result *types.CheckResult) {

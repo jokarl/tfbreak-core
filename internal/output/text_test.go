@@ -72,6 +72,91 @@ func TestTextRenderer(t *testing.T) {
 	}
 }
 
+func TestTextRenderer_WithRemediation(t *testing.T) {
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC001",
+				RuleName: "required-input-added",
+				Severity: types.SeverityBreaking,
+				Message:  "New required variable \"foo\" has no default",
+				NewLocation: &types.FileRange{
+					Filename: "variables.tf",
+					Line:     10,
+				},
+				Remediation: "To fix this issue:\n1. Add a default value\n2. Update callers",
+			},
+		},
+		Summary: types.Summary{
+			Breaking: 1,
+			Total:    1,
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityBreaking,
+	}
+
+	renderer := &TextRenderer{ColorEnabled: false}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Check remediation section is included
+	if !strings.Contains(output, "Remediation:") {
+		t.Error("output should contain Remediation section")
+	}
+
+	// Check remediation content
+	if !strings.Contains(output, "Add a default value") {
+		t.Error("output should contain remediation text")
+	}
+}
+
+func TestTextRenderer_NoRemediation(t *testing.T) {
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC001",
+				RuleName: "required-input-added",
+				Severity: types.SeverityBreaking,
+				Message:  "New required variable \"foo\" has no default",
+				NewLocation: &types.FileRange{
+					Filename: "variables.tf",
+					Line:     10,
+				},
+				// No Remediation field set
+			},
+		},
+		Summary: types.Summary{
+			Breaking: 1,
+			Total:    1,
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityBreaking,
+	}
+
+	renderer := &TextRenderer{ColorEnabled: false}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	output := buf.String()
+
+	// Check remediation section is NOT included
+	if strings.Contains(output, "Remediation:") {
+		t.Error("output should NOT contain Remediation section when not set")
+	}
+}
+
 func TestTextRendererPass(t *testing.T) {
 	result := &types.CheckResult{
 		OldPath:  "/old",

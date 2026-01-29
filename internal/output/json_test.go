@@ -78,6 +78,116 @@ func TestJSONRenderer(t *testing.T) {
 	}
 }
 
+func TestJSONRenderer_WithRemediation(t *testing.T) {
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:      "BC001",
+				RuleName:    "required-input-added",
+				Severity:    types.SeverityBreaking,
+				Message:     "New required variable \"foo\" has no default",
+				Remediation: "To fix this issue:\n1. Add a default value\n2. Update callers",
+				NewLocation: &types.FileRange{
+					Filename: "variables.tf",
+					Line:     10,
+				},
+			},
+		},
+		Summary: types.Summary{
+			Breaking: 1,
+			Total:    1,
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityBreaking,
+	}
+
+	renderer := &JSONRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("Invalid JSON: %v", err)
+	}
+
+	// Check findings have remediation
+	findings, ok := output["findings"].([]interface{})
+	if !ok {
+		t.Fatal("findings should be an array")
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+
+	finding := findings[0].(map[string]interface{})
+	remediation, ok := finding["remediation"]
+	if !ok {
+		t.Error("finding should have remediation field")
+	}
+	if remediation != "To fix this issue:\n1. Add a default value\n2. Update callers" {
+		t.Errorf("unexpected remediation: %v", remediation)
+	}
+}
+
+func TestJSONRenderer_NoRemediation(t *testing.T) {
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC001",
+				RuleName: "required-input-added",
+				Severity: types.SeverityBreaking,
+				Message:  "New required variable \"foo\" has no default",
+				// No Remediation field set
+				NewLocation: &types.FileRange{
+					Filename: "variables.tf",
+					Line:     10,
+				},
+			},
+		},
+		Summary: types.Summary{
+			Breaking: 1,
+			Total:    1,
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityBreaking,
+	}
+
+	renderer := &JSONRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var output map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &output); err != nil {
+		t.Fatalf("Invalid JSON: %v", err)
+	}
+
+	// Check findings do NOT have remediation
+	findings, ok := output["findings"].([]interface{})
+	if !ok {
+		t.Fatal("findings should be an array")
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+
+	finding := findings[0].(map[string]interface{})
+	if _, ok := finding["remediation"]; ok {
+		t.Error("finding should NOT have remediation field when not set")
+	}
+}
+
 func TestJSONRendererEmpty(t *testing.T) {
 	result := &types.CheckResult{
 		OldPath:  "/old",

@@ -32,6 +32,10 @@ type Finding struct {
 	// Metadata contains rule-specific metadata for advanced processing
 	// Used by rename detection rules to store old/new names for suppression logic
 	Metadata map[string]string `json:"metadata,omitempty"`
+
+	// Remediation provides guidance on how to fix this issue
+	// Only populated when --include-remediation flag is set
+	Remediation string `json:"remediation,omitempty"`
 }
 
 // NewFinding creates a new Finding with the given parameters
@@ -68,6 +72,12 @@ func (f *Finding) WithMetadata(key, value string) *Finding {
 		f.Metadata = make(map[string]string)
 	}
 	f.Metadata[key] = value
+	return f
+}
+
+// WithRemediation sets the remediation text and returns the finding for chaining
+func (f *Finding) WithRemediation(remediation string) *Finding {
+	f.Remediation = remediation
 	return f
 }
 
