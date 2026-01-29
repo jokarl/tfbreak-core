@@ -41,8 +41,8 @@ func TestRC006_DefaultChanged(t *testing.T) {
 	if f.RuleID != "RC006" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "RC006")
 	}
-	if f.Severity != types.SeverityRisky {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityRisky)
+	if f.Severity != types.SeverityWarning {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityWarning)
 	}
 }
 

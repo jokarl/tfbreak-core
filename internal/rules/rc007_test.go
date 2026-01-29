@@ -43,8 +43,8 @@ func TestRC007_NullableChanged_TrueToFalse(t *testing.T) {
 	if f.RuleID != "RC007" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "RC007")
 	}
-	if f.Severity != types.SeverityRisky {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityRisky)
+	if f.Severity != types.SeverityWarning {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityWarning)
 	}
 }
 
@@ -270,8 +270,8 @@ func TestRC007_Documentation(t *testing.T) {
 	if doc.Name != "input-nullable-changed" {
 		t.Errorf("Documentation Name = %q, want %q", doc.Name, "input-nullable-changed")
 	}
-	if doc.DefaultSeverity != types.SeverityRisky {
-		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityRisky)
+	if doc.DefaultSeverity != types.SeverityWarning {
+		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityWarning)
 	}
 	if doc.ExampleOld == "" {
 		t.Error("Documentation ExampleOld should not be empty")

@@ -86,18 +86,18 @@ func (r *TextRenderer) renderIndented(w io.Writer, text, prefix string) {
 func (r *TextRenderer) renderSummary(w io.Writer, result *types.CheckResult) {
 	parts := []string{}
 
-	if result.Summary.Breaking > 0 {
-		parts = append(parts, fmt.Sprintf("%d breaking", result.Summary.Breaking))
+	if result.Summary.Error > 0 {
+		parts = append(parts, fmt.Sprintf("%d error", result.Summary.Error))
 	}
-	if result.Summary.Risky > 0 {
+	if result.Summary.Warning > 0 {
 		if result.Summary.Ignored > 0 {
-			parts = append(parts, fmt.Sprintf("%d risky (%d ignored)", result.Summary.Risky, result.Summary.Ignored))
+			parts = append(parts, fmt.Sprintf("%d warning (%d ignored)", result.Summary.Warning, result.Summary.Ignored))
 		} else {
-			parts = append(parts, fmt.Sprintf("%d risky", result.Summary.Risky))
+			parts = append(parts, fmt.Sprintf("%d warning", result.Summary.Warning))
 		}
 	}
-	if result.Summary.Info > 0 {
-		parts = append(parts, fmt.Sprintf("%d info", result.Summary.Info))
+	if result.Summary.Notice > 0 {
+		parts = append(parts, fmt.Sprintf("%d notice", result.Summary.Notice))
 	}
 
 	if len(parts) == 0 {
@@ -118,9 +118,9 @@ func (r *TextRenderer) renderResult(w io.Writer, result *types.CheckResult) {
 	} else {
 		if r.ColorEnabled {
 			red := color.New(color.FgRed).SprintFunc()
-			fmt.Fprintf(w, "Result: %s (breaking changes detected)\n", red("FAIL"))
+			fmt.Fprintf(w, "Result: %s (errors detected)\n", red("FAIL"))
 		} else {
-			fmt.Fprintln(w, "Result: FAIL (breaking changes detected)")
+			fmt.Fprintln(w, "Result: FAIL (errors detected)")
 		}
 	}
 }
@@ -132,11 +132,11 @@ func (r *TextRenderer) colorSeverity(s types.Severity) string {
 	}
 
 	switch s {
-	case types.SeverityBreaking:
+	case types.SeverityError:
 		return color.New(color.FgRed, color.Bold).Sprint(str)
-	case types.SeverityRisky:
+	case types.SeverityWarning:
 		return color.New(color.FgYellow).Sprint(str)
-	case types.SeverityInfo:
+	case types.SeverityNotice:
 		return color.New(color.FgCyan).Sprint(str)
 	default:
 		return str

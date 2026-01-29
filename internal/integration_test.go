@@ -148,7 +148,7 @@ func runScenarioWithOptions(t *testing.T, name string, expectedRuleIDs []string,
 
 	// Run engine
 	engine := rules.NewDefaultEngine()
-	result := engine.Check(oldDir, newDir, oldSnap, newSnap, types.SeverityBreaking)
+	result := engine.Check(oldDir, newDir, oldSnap, newSnap, types.SeverityError)
 
 	// Build set of found rule IDs
 	foundRuleIDs := make(map[string]bool)

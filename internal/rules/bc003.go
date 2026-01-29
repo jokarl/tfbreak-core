@@ -26,7 +26,7 @@ func (r *BC003) Description() string {
 }
 
 func (r *BC003) DefaultSeverity() types.Severity {
-	return types.SeverityBreaking
+	return types.SeverityError
 }
 
 func (r *BC003) Documentation() *RuleDoc {

@@ -16,7 +16,7 @@ func TestRC013_Metadata(t *testing.T) {
 	if r.Name() != "validation-value-removed" {
 		t.Errorf("expected Name 'validation-value-removed', got %q", r.Name())
 	}
-	if r.DefaultSeverity() != types.SeverityRisky {
+	if r.DefaultSeverity() != types.SeverityWarning {
 		t.Errorf("expected severity RISKY, got %v", r.DefaultSeverity())
 	}
 	if r.Documentation() == nil {
@@ -274,7 +274,7 @@ func TestRC013_Evaluate(t *testing.T) {
 				if f.RuleName != "validation-value-removed" {
 					t.Errorf("expected RuleName 'validation-value-removed', got %q", f.RuleName)
 				}
-				if f.Severity != types.SeverityRisky {
+				if f.Severity != types.SeverityWarning {
 					t.Errorf("expected severity RISKY, got %v", f.Severity)
 				}
 			}

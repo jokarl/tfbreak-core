@@ -16,7 +16,7 @@ func Default() *Config {
 			Color:  "auto",
 		},
 		Policy: &PolicyConfig{
-			FailOn:                "BREAKING",
+			FailOn:                "ERROR",
 			TreatWarningsAsErrors: false,
 		},
 		Annotations: &AnnotationsConfig{
@@ -67,10 +67,10 @@ output {
 
 # CI policy settings
 policy {
-  # Minimum severity to fail the check: BREAKING, RISKY, INFO (default: BREAKING)
-  fail_on = "BREAKING"
+  # Minimum severity to fail the check: ERROR, WARNING, NOTICE (default: ERROR)
+  fail_on = "ERROR"
 
-  # Treat RISKY findings as errors (default: false)
+  # Treat WARNING findings as errors (default: false)
   treat_warnings_as_errors = false
 }
 
@@ -106,47 +106,47 @@ annotations {
 #
 # rules "BC001" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC002" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC005" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "RC006" {
 #   enabled  = true
-#   severity = "RISKY"
+#   severity = "WARNING"
 # }
 #
 # rules "BC009" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC100" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC101" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC102" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC103" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 `
 }

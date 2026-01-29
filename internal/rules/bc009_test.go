@@ -30,8 +30,8 @@ func TestBC009_RemovedOutput(t *testing.T) {
 	if f.RuleID != "BC009" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "BC009")
 	}
-	if f.Severity != types.SeverityBreaking {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityBreaking)
+	if f.Severity != types.SeverityError {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityError)
 	}
 }
 

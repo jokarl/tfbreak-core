@@ -26,7 +26,7 @@ func (r *RC007) Description() string {
 }
 
 func (r *RC007) DefaultSeverity() types.Severity {
-	return types.SeverityRisky
+	return types.SeverityWarning
 }
 
 func (r *RC007) Documentation() *RuleDoc {

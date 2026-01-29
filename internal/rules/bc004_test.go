@@ -39,8 +39,8 @@ func TestBC004_TypeChanged(t *testing.T) {
 	if f.RuleID != "BC004" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "BC004")
 	}
-	if f.Severity != types.SeverityBreaking {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityBreaking)
+	if f.Severity != types.SeverityError {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityError)
 	}
 }
 
@@ -278,8 +278,8 @@ func TestBC004_Documentation(t *testing.T) {
 	if doc.Name != "input-type-changed" {
 		t.Errorf("Documentation Name = %q, want %q", doc.Name, "input-type-changed")
 	}
-	if doc.DefaultSeverity != types.SeverityBreaking {
-		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityBreaking)
+	if doc.DefaultSeverity != types.SeverityError {
+		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityError)
 	}
 	if doc.ExampleOld == "" {
 		t.Error("Documentation ExampleOld should not be empty")

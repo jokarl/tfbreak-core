@@ -38,8 +38,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Policy == nil {
 		t.Fatal("expected policy to be set")
 	}
-	if cfg.Policy.FailOn != "BREAKING" {
-		t.Errorf("expected fail_on 'BREAKING', got %s", cfg.Policy.FailOn)
+	if cfg.Policy.FailOn != "ERROR" {
+		t.Errorf("expected fail_on 'ERROR', got %s", cfg.Policy.FailOn)
 	}
 
 	if cfg.Annotations == nil {
@@ -69,7 +69,7 @@ output {
 }
 
 policy {
-  fail_on = "RISKY"
+  fail_on = "WARNING"
 }
 
 annotations {
@@ -79,7 +79,7 @@ annotations {
 
 rules "required-input-added" {
   enabled  = false
-  severity = "INFO"
+  severity = "NOTICE"
 }
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -109,8 +109,8 @@ rules "required-input-added" {
 		t.Errorf("expected color 'never', got %s", cfg.Output.Color)
 	}
 
-	if cfg.Policy.FailOn != "RISKY" {
-		t.Errorf("expected fail_on 'RISKY', got %s", cfg.Policy.FailOn)
+	if cfg.Policy.FailOn != "WARNING" {
+		t.Errorf("expected fail_on 'WARNING', got %s", cfg.Policy.FailOn)
 	}
 
 	if !cfg.Annotations.RequireReason {
@@ -125,8 +125,8 @@ rules "required-input-added" {
 		t.Error("expected required-input-added to be disabled")
 	}
 
-	sev := cfg.GetRuleSeverity("required-input-added", types.SeverityBreaking)
-	if sev != types.SeverityInfo {
+	sev := cfg.GetRuleSeverity("required-input-added", types.SeverityError)
+	if sev != types.SeverityNotice {
 		t.Errorf("expected required-input-added severity INFO, got %s", sev)
 	}
 }

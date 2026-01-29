@@ -28,8 +28,8 @@ func TestBC201_ProviderRemoved(t *testing.T) {
 	if f.RuleID != "BC201" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "BC201")
 	}
-	if f.Severity != types.SeverityBreaking {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityBreaking)
+	if f.Severity != types.SeverityError {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityError)
 	}
 }
 
@@ -207,8 +207,8 @@ func TestBC201_Documentation(t *testing.T) {
 	if doc.Name != "provider-version-constrained" {
 		t.Errorf("Documentation Name = %q, want %q", doc.Name, "provider-version-constrained")
 	}
-	if doc.DefaultSeverity != types.SeverityBreaking {
-		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityBreaking)
+	if doc.DefaultSeverity != types.SeverityError {
+		t.Errorf("Documentation Severity = %v, want %v", doc.DefaultSeverity, types.SeverityError)
 	}
 	if doc.ExampleOld == "" {
 		t.Error("Documentation ExampleOld should not be empty")

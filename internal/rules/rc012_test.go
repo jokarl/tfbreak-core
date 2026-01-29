@@ -15,7 +15,7 @@ func TestRC012_Metadata(t *testing.T) {
 	if r.Name() != "validation-added" {
 		t.Errorf("expected Name 'validation-added', got %q", r.Name())
 	}
-	if r.DefaultSeverity() != types.SeverityRisky {
+	if r.DefaultSeverity() != types.SeverityWarning {
 		t.Errorf("expected severity RISKY, got %v", r.DefaultSeverity())
 	}
 	if r.Documentation() == nil {
@@ -225,7 +225,7 @@ func TestRC012_Evaluate(t *testing.T) {
 				if f.RuleName != "validation-added" {
 					t.Errorf("expected RuleName 'validation-added', got %q", f.RuleName)
 				}
-				if f.Severity != types.SeverityRisky {
+				if f.Severity != types.SeverityWarning {
 					t.Errorf("expected severity RISKY, got %v", f.Severity)
 				}
 			}

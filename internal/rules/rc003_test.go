@@ -68,7 +68,7 @@ func TestRC003_OptionalRenameDetected(t *testing.T) {
 	if f.RuleID != "RC003" {
 		t.Errorf("Expected rule ID RC003, got %s", f.RuleID)
 	}
-	if f.Severity != types.SeverityRisky {
+	if f.Severity != types.SeverityWarning {
 		t.Errorf("Expected RISKY severity, got %s", f.Severity)
 	}
 	if f.Metadata["old_name"] != "timeout" {
@@ -186,7 +186,7 @@ func TestRC003_RuleMetadata(t *testing.T) {
 	if rule.Name() != "input-renamed-optional" {
 		t.Errorf("Expected name 'input-renamed-optional', got %s", rule.Name())
 	}
-	if rule.DefaultSeverity() != types.SeverityRisky {
+	if rule.DefaultSeverity() != types.SeverityWarning {
 		t.Errorf("Expected severity RISKY, got %s", rule.DefaultSeverity())
 	}
 	if rule.Documentation() == nil {

@@ -66,7 +66,7 @@ func TestBC003_RequiredRenameDetected(t *testing.T) {
 	if f.RuleID != "BC003" {
 		t.Errorf("Expected rule ID BC003, got %s", f.RuleID)
 	}
-	if f.Severity != types.SeverityBreaking {
+	if f.Severity != types.SeverityError {
 		t.Errorf("Expected BREAKING severity, got %s", f.Severity)
 	}
 	if f.Metadata["old_name"] != "api_key" {
@@ -239,7 +239,7 @@ func TestBC003_RuleMetadata(t *testing.T) {
 	if rule.Name() != "input-renamed" {
 		t.Errorf("Expected name 'input-renamed', got %s", rule.Name())
 	}
-	if rule.DefaultSeverity() != types.SeverityBreaking {
+	if rule.DefaultSeverity() != types.SeverityError {
 		t.Errorf("Expected severity BREAKING, got %s", rule.DefaultSeverity())
 	}
 	if rule.Documentation() == nil {
