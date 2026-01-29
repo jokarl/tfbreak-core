@@ -86,6 +86,14 @@ func TestScenario_BC201_ProviderRemoved(t *testing.T) {
 	runScenario(t, "bc201_provider_removed", []string{"BC201"})
 }
 
+func TestScenario_RC012_ValidationAdded(t *testing.T) {
+	runScenario(t, "rc012_validation_added", []string{"RC012"})
+}
+
+func TestScenario_RC013_ValidationValueRemoved(t *testing.T) {
+	runScenario(t, "rc013_validation_value_removed", []string{"RC013"})
+}
+
 func runScenario(t *testing.T, name string, expectedRuleIDs []string) {
 	t.Helper()
 
