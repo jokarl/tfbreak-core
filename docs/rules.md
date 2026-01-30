@@ -765,4 +765,4 @@ variable "new_required_var" {
 # tfbreak:ignore all
 ```
 
-See the [Annotations Guide](annotations.md) for more details.
+See the [Annotations Guide](user-guide/annotations.md) for more details.
