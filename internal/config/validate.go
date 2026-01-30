@@ -116,7 +116,7 @@ func Validate(cfg *Config) error {
 	// Validate policy fail_on
 	if cfg.Policy != nil && cfg.Policy.FailOn != "" {
 		if _, err := types.ParseSeverity(cfg.Policy.FailOn); err != nil {
-			return fmt.Errorf("invalid fail_on severity: %s (must be 'BREAKING', 'RISKY', or 'INFO')", cfg.Policy.FailOn)
+			return fmt.Errorf("invalid fail_on severity: %s (must be 'ERROR', 'WARNING', or 'NOTICE')", cfg.Policy.FailOn)
 		}
 	}
 
