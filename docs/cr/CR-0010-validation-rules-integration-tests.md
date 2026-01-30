@@ -1,6 +1,6 @@
 ---
 id: "CR-0010"
-status: "approved"
+status: "implemented"
 date: 2026-01-29
 requestor: jokarl
 stakeholders: [jokarl, tfbreak-core maintainers]

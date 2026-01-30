@@ -1,6 +1,6 @@
 ---
 id: "CR-0001"
-status: approved
+status: "implemented"
 date: 2026-01-28
 requestor: project maintainers
 stakeholders: [project maintainers, future module consumers]

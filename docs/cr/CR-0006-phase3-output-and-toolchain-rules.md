@@ -1,6 +1,6 @@
 ---
 id: "CR-0006"
-status: "approved"
+status: "implemented"
 date: 2026-01-28
 requestor: tfbreak-core maintainers
 stakeholders: [tfbreak-core maintainers, module consumers, CI/CD integrators]

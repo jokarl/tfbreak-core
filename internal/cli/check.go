@@ -1,14 +1,19 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/jokarl/tfbreak-core/internal/annotation"
 	"github.com/jokarl/tfbreak-core/internal/config"
+	"github.com/jokarl/tfbreak-core/internal/git"
 	"github.com/jokarl/tfbreak-core/internal/loader"
 	"github.com/jokarl/tfbreak-core/internal/output"
 	"github.com/jokarl/tfbreak-core/internal/pathfilter"
@@ -41,15 +46,36 @@ var (
 
 	// Output enhancement flags
 	includeRemediationFlag bool
+
+	// Git ref flags
+	baseFlag string
+	headFlag string
+	repoFlag string
 )
 
 var checkCmd = &cobra.Command{
-	Use:   "check <old_dir> <new_dir>",
+	Use:   "check [flags] [old_dir] [new_dir]",
 	Short: "Compare directories and evaluate policy",
 	Long: `Compare an "old" and "new" Terraform configuration directory,
 extract structural signatures, and report changes that would break
-callers or destroy state.`,
-	Args: cobra.ExactArgs(2),
+callers or destroy state.
+
+Git ref comparison modes:
+  tfbreak check --base <ref[:path]> [new_dir]       Compare working dir against local ref
+  tfbreak check --base <ref[:path]> --head <ref[:path]>    Compare two local refs
+  tfbreak check --repo <url> --base <ref[:path]> --head <ref[:path]>  Compare two remote refs
+
+The ref:path syntax (like git show) specifies a subdirectory within the ref.
+If no path is specified, the repository root is used.
+
+Examples:
+  tfbreak check ./old ./new                    Directory mode
+  tfbreak check --base main ./                 Compare ./ against main branch
+  tfbreak check --base main:modules/vpc ./     Compare modules/vpc at main vs ./
+  tfbreak check --base v1.0.0 --head v2.0.0    Compare two local tags
+  tfbreak check --base v1:src --head v2:src    Compare src/ directory between tags
+  tfbreak check --repo https://github.com/org/mod --base v1 --head v2  Remote mode`,
+	Args: validateCheckArgs,
 	RunE: runCheck,
 }
 
@@ -80,11 +106,129 @@ func init() {
 
 	// Output enhancement flags
 	checkCmd.Flags().BoolVar(&includeRemediationFlag, "include-remediation", false, "Include remediation guidance for each finding")
+
+	// Git ref flags
+	checkCmd.Flags().StringVar(&baseFlag, "base", "", "Git ref for old configuration (branch, tag, or commit)")
+	checkCmd.Flags().StringVar(&headFlag, "head", "", "Git ref for new configuration (requires --base)")
+	checkCmd.Flags().StringVar(&repoFlag, "repo", "", "Remote repository URL (requires --base)")
+}
+
+// checkMode represents the comparison mode
+type checkMode int
+
+const (
+	modeDirectory checkMode = iota // Two directory arguments
+	modeLocalRef                   // --base with working directory
+	modeTwoLocalRefs               // --base and --head (local)
+	modeRemoteRefs                 // --repo with --base and --head
+	modeMixed                      // --repo with --base and local new_dir
+)
+
+// validateCheckArgs validates the command arguments based on flags
+func validateCheckArgs(cmd *cobra.Command, args []string) error {
+	hasBase := baseFlag != ""
+	hasHead := headFlag != ""
+	hasRepo := repoFlag != ""
+
+	// --head requires --base
+	if hasHead && !hasBase {
+		return errors.New("--head requires --base to be specified")
+	}
+
+	// --repo requires --base
+	if hasRepo && !hasBase {
+		return errors.New("--repo requires --base to be specified")
+	}
+
+	// Determine expected arguments based on mode
+	if hasRepo {
+		if hasHead {
+			// --repo --base --head: no positional args needed
+			if len(args) > 0 {
+				return errors.New("no positional arguments expected with --repo --base --head")
+			}
+		} else {
+			// --repo --base: need new_dir
+			if len(args) != 1 {
+				return errors.New("exactly one positional argument (new_dir) required with --repo --base")
+			}
+		}
+	} else if hasBase {
+		if hasHead {
+			// --base --head: no positional args needed
+			if len(args) > 0 {
+				return errors.New("no positional arguments expected with --base --head")
+			}
+		} else {
+			// --base only: optional new_dir (defaults to .)
+			if len(args) > 1 {
+				return errors.New("at most one positional argument (new_dir) expected with --base")
+			}
+		}
+	} else {
+		// Directory mode: need exactly 2 args
+		if len(args) != 2 {
+			return errors.New("exactly two directory arguments required: <old_dir> <new_dir>")
+		}
+	}
+
+	return nil
+}
+
+// determineMode returns the check mode based on flags
+func determineMode() checkMode {
+	hasBase := baseFlag != ""
+	hasHead := headFlag != ""
+	hasRepo := repoFlag != ""
+
+	if hasRepo {
+		if hasHead {
+			return modeRemoteRefs
+		}
+		return modeMixed
+	}
+	if hasBase {
+		if hasHead {
+			return modeTwoLocalRefs
+		}
+		return modeLocalRef
+	}
+	return modeDirectory
 }
 
 func runCheck(cmd *cobra.Command, args []string) error {
-	oldDir := args[0]
-	newDir := args[1]
+	mode := determineMode()
+
+	// For git modes, run pre-flight checks
+	if mode != modeDirectory {
+		if err := runPreflightChecks(mode); err != nil {
+			// Exit code 2 for git-related errors
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+	}
+
+	// Get old and new directories based on mode
+	oldDir, newDir, cleanup, err := resolveDirectories(mode, args)
+	if err != nil {
+		if mode != modeDirectory {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		return err
+	}
+
+	// Set up signal handling for cleanup
+	if cleanup != nil {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			cleanup()
+			os.Exit(130) // 128 + SIGINT
+		}()
+		defer cleanup()
+	}
 
 	// Load configuration
 	cfg, err := config.Load(configFlag, oldDir)
@@ -332,6 +476,41 @@ func processAnnotations(dir string, filter *pathfilter.Filter, cfg *config.Confi
 	return nil
 }
 
+// refSpec represents a parsed ref:path specification
+type refSpec struct {
+	Ref  string
+	Path string // Empty means repo root
+}
+
+// parseRefSpec parses a ref:path specification like "main:modules/vpc"
+// If no path is specified, Path is empty (meaning repo root)
+func parseRefSpec(spec string) refSpec {
+	// Find the first colon that's not part of a Windows drive letter
+	// and not part of a URL scheme (e.g., https://)
+	idx := strings.Index(spec, ":")
+
+	// Skip URL-like patterns (e.g., https://...)
+	if idx > 0 && idx < len(spec)-2 && spec[idx+1] == '/' && spec[idx+2] == '/' {
+		// This looks like a URL, no path component
+		return refSpec{Ref: spec, Path: ""}
+	}
+
+	// Skip Windows drive letters (single letter before colon)
+	if idx == 1 && len(spec) > 2 && (spec[0] >= 'A' && spec[0] <= 'Z' || spec[0] >= 'a' && spec[0] <= 'z') {
+		// Looks like C:\... - no path component in ref sense
+		return refSpec{Ref: spec, Path: ""}
+	}
+
+	if idx == -1 {
+		return refSpec{Ref: spec, Path: ""}
+	}
+
+	return refSpec{
+		Ref:  spec[:idx],
+		Path: spec[idx+1:],
+	}
+}
+
 func shouldUseColor(f *os.File, colorMode string) bool {
 	switch colorMode {
 	case "always":
@@ -346,4 +525,258 @@ func shouldUseColor(f *os.File, colorMode string) bool {
 		}
 		return (stat.Mode() & os.ModeCharDevice) != 0
 	}
+}
+
+// runPreflightChecks performs pre-flight validation for git modes
+func runPreflightChecks(mode checkMode) error {
+	// 1. Check if git is installed
+	if !git.Available() {
+		return fmt.Errorf(`Error: git is not installed or not in PATH
+
+tfbreak requires git 2.5 or later for git ref comparison.
+Install git: https://git-scm.com/downloads`)
+	}
+
+	// 2. Check git version (need 2.5 for worktree support)
+	if mode != modeRemoteRefs && mode != modeMixed {
+		if err := git.CheckVersion(2, 5); err != nil {
+			var versionErr *git.ErrVersionTooOld
+			if errors.As(err, &versionErr) {
+				return fmt.Errorf(`Error: git version %s is below minimum required 2.5
+
+tfbreak requires git 2.5 or later for worktree support.
+Please upgrade git: https://git-scm.com/downloads`, versionErr.Current)
+			}
+			return fmt.Errorf("failed to check git version: %w", err)
+		}
+	}
+
+	// 3. Check if we're in a git repository (not required for --repo mode)
+	if mode == modeLocalRef || mode == modeTwoLocalRefs {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+		if !git.IsGitRepository(cwd) {
+			return fmt.Errorf(`Error: not a git repository (or any parent up to /)
+
+The --base flag requires running from within a git repository.
+Either:
+  - Run from inside a git repository
+  - Use --repo to compare remote repositories`)
+		}
+	}
+
+	// 4. Validate refs exist (parse ref:path specs to extract just the ref)
+	baseSpec := parseRefSpec(baseFlag)
+	headSpec := parseRefSpec(headFlag)
+
+	if mode == modeLocalRef || mode == modeTwoLocalRefs {
+		cwd, _ := os.Getwd()
+		repoRoot, err := git.FindGitRoot(cwd)
+		if err != nil {
+			return err
+		}
+
+		// Check base ref
+		if _, err := git.ResolveRef(repoRoot, baseSpec.Ref); err != nil {
+			return formatRefNotFoundError(baseSpec.Ref, repoRoot, err)
+		}
+
+		// Check head ref if specified
+		if headFlag != "" {
+			if _, err := git.ResolveRef(repoRoot, headSpec.Ref); err != nil {
+				return formatRefNotFoundError(headSpec.Ref, repoRoot, err)
+			}
+		}
+	}
+
+	// For remote mode, validate remote refs
+	if mode == modeRemoteRefs || mode == modeMixed {
+		// Validate base ref exists remotely
+		if _, _, err := git.ResolveRemoteRef(repoFlag, baseSpec.Ref); err != nil {
+			return formatRemoteRefNotFoundError(baseSpec.Ref, repoFlag, err)
+		}
+
+		// Validate head ref if specified
+		if headFlag != "" {
+			if _, _, err := git.ResolveRemoteRef(repoFlag, headSpec.Ref); err != nil {
+				return formatRemoteRefNotFoundError(headSpec.Ref, repoFlag, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// formatRefNotFoundError formats a user-friendly error for missing local refs
+func formatRefNotFoundError(ref, repoDir string, originalErr error) error {
+	isShallow, _ := git.IsShallowClone(repoDir)
+	if isShallow {
+		return fmt.Errorf(`Error: ref '%s' not found in repository
+
+This may be because the repository is a shallow clone.
+To fix, fetch the required ref:
+
+  git fetch origin %s
+
+Or fetch full history:
+
+  git fetch --unshallow
+
+For CI pipelines, configure full checkout depth:
+  - GitHub Actions: actions/checkout with fetch-depth: 0
+  - GitLab CI: GIT_DEPTH: 0`, ref, ref)
+	}
+
+	return fmt.Errorf(`Error: ref '%s' not found in repository
+
+%v
+
+Check that the ref exists:
+  git rev-parse --verify %s`, ref, originalErr, ref)
+}
+
+// formatRemoteRefNotFoundError formats a user-friendly error for missing remote refs
+func formatRemoteRefNotFoundError(ref, url string, err error) error {
+	// Check if it's an authentication/access error
+	if git.IsAuthError(err) {
+		return fmt.Errorf(`Error: cannot access repository '%s'
+
+Git error: %v
+
+Troubleshooting:
+  - Check the URL is correct
+  - For private repos, ensure credentials are configured
+  - Test manually: git ls-remote %s`, url, err, url)
+	}
+
+	return fmt.Errorf(`Error: ref '%s' not found in '%s'
+
+Available tags can be listed with:
+  git ls-remote --tags %s
+
+Available branches:
+  git ls-remote --heads %s`, ref, url, url, url)
+}
+
+// resolveDirectories resolves old and new directories based on mode
+// Returns directories and a cleanup function (may be nil)
+func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, cleanup func(), err error) {
+	// Parse ref:path specs
+	baseSpec := parseRefSpec(baseFlag)
+	headSpec := parseRefSpec(headFlag)
+
+	switch mode {
+	case modeDirectory:
+		return args[0], args[1], nil, nil
+
+	case modeLocalRef:
+		// new_dir is args[0] or "."
+		if len(args) > 0 {
+			newDir = args[0]
+		} else {
+			newDir = "."
+		}
+
+		// Create worktree for base ref
+		cwd, _ := os.Getwd()
+		repoRoot, err := git.FindGitRoot(cwd)
+		if err != nil {
+			return "", "", nil, err
+		}
+
+		worktree, err := git.CreateWorktree(repoRoot, baseSpec.Ref)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("failed to create worktree for %s: %w", baseSpec.Ref, err)
+		}
+
+		// Apply path within worktree if specified
+		oldDir = worktree.Path
+		if baseSpec.Path != "" {
+			oldDir = filepath.Join(worktree.Path, baseSpec.Path)
+		}
+
+		return oldDir, newDir, func() { worktree.Remove() }, nil
+
+	case modeTwoLocalRefs:
+		cwd, _ := os.Getwd()
+		repoRoot, err := git.FindGitRoot(cwd)
+		if err != nil {
+			return "", "", nil, err
+		}
+
+		// Create worktree for base ref
+		baseWorktree, err := git.CreateWorktree(repoRoot, baseSpec.Ref)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("failed to create worktree for %s: %w", baseSpec.Ref, err)
+		}
+
+		// Create worktree for head ref
+		headWorktree, err := git.CreateWorktree(repoRoot, headSpec.Ref)
+		if err != nil {
+			baseWorktree.Remove()
+			return "", "", nil, fmt.Errorf("failed to create worktree for %s: %w", headSpec.Ref, err)
+		}
+
+		cleanup = func() {
+			baseWorktree.Remove()
+			headWorktree.Remove()
+		}
+
+		// Apply paths within worktrees if specified
+		oldDir = baseWorktree.Path
+		if baseSpec.Path != "" {
+			oldDir = filepath.Join(baseWorktree.Path, baseSpec.Path)
+		}
+		newDir = headWorktree.Path
+		if headSpec.Path != "" {
+			newDir = filepath.Join(headWorktree.Path, headSpec.Path)
+		}
+
+		return oldDir, newDir, cleanup, nil
+
+	case modeRemoteRefs:
+		// Clone both refs from remote
+		baseClone, headClone, err := git.CloneForComparison(repoFlag, baseSpec.Ref, headSpec.Ref)
+		if err != nil {
+			return "", "", nil, err
+		}
+
+		cleanup = func() {
+			baseClone.Remove()
+			headClone.Remove()
+		}
+
+		// Apply paths within clones if specified
+		oldDir = baseClone.Path
+		if baseSpec.Path != "" {
+			oldDir = filepath.Join(baseClone.Path, baseSpec.Path)
+		}
+		newDir = headClone.Path
+		if headSpec.Path != "" {
+			newDir = filepath.Join(headClone.Path, headSpec.Path)
+		}
+
+		return oldDir, newDir, cleanup, nil
+
+	case modeMixed:
+		// Clone base ref from remote, use local new_dir
+		newDir = args[0]
+
+		baseClone, err := git.ShallowClone(repoFlag, baseSpec.Ref)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("failed to clone %s from %s: %w", baseSpec.Ref, repoFlag, err)
+		}
+
+		// Apply path within clone if specified
+		oldDir = baseClone.Path
+		if baseSpec.Path != "" {
+			oldDir = filepath.Join(baseClone.Path, baseSpec.Path)
+		}
+
+		return oldDir, newDir, func() { baseClone.Remove() }, nil
+	}
+
+	return "", "", nil, errors.New("unknown mode")
 }
