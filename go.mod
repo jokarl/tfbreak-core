@@ -7,7 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20260120201749-785479628bd7
-	github.com/jokarl/tfbreak-plugin-sdk v0.0.0
+	github.com/jokarl/tfbreak-plugin-sdk v0.2.0
 	github.com/spf13/cobra v1.8.0
 	github.com/zclconf/go-cty v1.16.3
 )
@@ -28,5 +28,3 @@ require (
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 )
-
-replace github.com/jokarl/tfbreak-plugin-sdk => ./tfbreak-plugin-sdk
