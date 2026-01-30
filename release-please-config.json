@@ -17,8 +17,8 @@
       "section": "Bug Fixes"
     },
     {
-      "type": "chore",
-      "section": "Chores",
+      "type": "deps",
+      "section": "Dependencies",
       "hidden": false
     }
   ],
