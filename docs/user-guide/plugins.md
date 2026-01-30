@@ -39,7 +39,188 @@ On Windows, add the `.exe` extension: `tfbreak-ruleset-azurerm.exe`
 
 ## Installing Plugins
 
+### Automatic Installation (Recommended)
+
+Use `tfbreak --init` to automatically download and install plugins configured in your `.tfbreak.hcl`:
+
+```bash
+tfbreak --init
+```
+
+This downloads plugins from GitHub releases, verifies SHA256 checksums, and installs them to the appropriate directory.
+
+**Example output:**
+
+```
+Installing plugins to /Users/you/.tfbreak.d/plugins
+
+  - azurerm v0.1.0: Installed
+
+Plugin installation complete.
+```
+
+For automatic installation to work, your `.tfbreak.hcl` must specify both `source` and `version`:
+
+```hcl
+version = 1
+
+plugin "azurerm" {
+  enabled = true
+  source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+  version = "0.1.0"
+}
+```
+
+#### Supported Sources
+
+tfbreak supports multiple source types for plugin distribution:
+
+| Source Type | URL Pattern | Example |
+|-------------|-------------|---------|
+| GitHub | `github.com/owner/repo` | `github.com/jokarl/tfbreak-ruleset-azurerm` |
+| GitLab | `gitlab.com/owner/repo` | `gitlab.com/company/tfbreak-ruleset-internal` |
+| Self-hosted GitLab | `gitlab.host.com/owner/repo` | `gitlab.company.com/team/tfbreak-ruleset-private` |
+| HTTP | `https://host/path` | `https://plugins.company.com/tfbreak-ruleset-custom` |
+| Local filesystem | `file:///path` | `file:///var/tfbreak-plugins/tfbreak-ruleset-local` |
+
+**GitLab example:**
+
+```hcl
+plugin "internal" {
+  enabled = true
+  source  = "gitlab.com/company/tfbreak-ruleset-internal"
+  version = "1.0.0"
+}
+```
+
+**Local filesystem example (for air-gapped environments):**
+
+```hcl
+plugin "airgap" {
+  enabled = true
+  source  = "file:///var/tfbreak-plugins/tfbreak-ruleset-airgap"
+  version = "2.0.0"
+}
+```
+
+#### GitHub Authentication
+
+The `--init` command downloads plugins from GitHub releases. Authentication is **optional but recommended**:
+
+| Scenario | Authentication Required? |
+|----------|------------------------|
+| Public repositories | No (but recommended to avoid rate limits) |
+| Private repositories | Yes |
+| High-frequency downloads | Recommended |
+
+**Setting up authentication:**
+
+```bash
+# Option 1: Set GITHUB_TOKEN
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+
+# Option 2: Set GH_TOKEN (used by GitHub CLI)
+export GH_TOKEN=ghp_xxxxxxxxxxxx
+```
+
+tfbreak checks `GITHUB_TOKEN` first, then `GH_TOKEN`.
+
+**Without authentication:**
+- Works for public repositories
+- Subject to GitHub's unauthenticated rate limit (60 requests/hour per IP)
+- If rate limited, you'll see: `GitHub API rate limit exceeded. Set GITHUB_TOKEN to increase limit`
+
+**With authentication:**
+- Required for private repositories
+- Higher rate limit (5,000 requests/hour)
+- Access to private plugin repositories
+
+**Creating a GitHub token:**
+
+1. Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+2. Generate a new token (classic) with `repo` scope for private repos, or no scope for public repos only
+3. Set the token in your environment
+
+#### GitLab Authentication
+
+For GitLab sources, set the `GITLAB_TOKEN` or `GL_TOKEN` environment variable:
+
+```bash
+export GITLAB_TOKEN=glpat-xxxxxxxxxxxx
+```
+
+**Creating a GitLab token:**
+
+1. Go to [GitLab Settings > Access Tokens](https://gitlab.com/-/user_settings/personal_access_tokens)
+2. Create a token with `read_api` scope
+3. Set the token in your environment
+
+#### Install Directory
+
+Plugins are installed to a versioned directory structure:
+
+```
+~/.tfbreak.d/plugins/
+└── github.com/jokarl/tfbreak-ruleset-azurerm/
+    └── 0.1.0/
+        └── tfbreak-ruleset-azurerm
+```
+
+This structure allows multiple versions to coexist. The directory can be customized:
+
+1. **In config file** (`plugin_dir` in `.tfbreak.hcl`)
+2. **Environment variable** (`TFBREAK_PLUGIN_DIR`)
+3. **Default** (`~/.tfbreak.d/plugins/`)
+
+#### Checksum Verification
+
+All plugins are verified against SHA256 checksums from the release's `checksums.txt` file. If verification fails, the plugin is not installed and you'll see:
+
+```
+  - azurerm v0.1.0: ERROR
+    checksum mismatch for tfbreak-ruleset-azurerm_darwin_arm64.zip: expected abc123..., got def456...
+```
+
+This protects against corrupted downloads and supply chain attacks.
+
+#### PGP Signature Verification (Optional)
+
+For additional security, you can configure PGP signature verification to ensure plugins were signed by trusted developers:
+
+```hcl
+plugin "azurerm" {
+  enabled = true
+  source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+  version = "0.1.0"
+
+  # PGP public key for signature verification
+  signing_key = <<-KEY
+    -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+    mQINBFzpPOMBEADOat4P4z0jvXaYdhfy+UcGivb2XYgGSPQycTgeW1YuGLYdfrwz
+    ...
+    -----END PGP PUBLIC KEY BLOCK-----
+    KEY
+}
+```
+
+When `signing_key` is configured:
+1. tfbreak downloads `checksums.txt.sig` from the release
+2. Verifies the signature against the configured public key
+3. Only proceeds with installation if verification succeeds
+
+If signature verification fails:
+
+```
+  - azurerm v0.1.0: ERROR
+    signature verification failed for plugin azurerm: signature verification failed: ...
+```
+
+**Note:** Signature verification is optional. If `signing_key` is not configured, only checksum verification is performed.
+
 ### Manual Installation
+
+If you prefer manual installation or need to install from non-GitHub sources:
 
 1. Download the plugin binary for your platform
 2. Place it in one of the plugin discovery directories
@@ -92,8 +273,9 @@ plugin "azurerm" {
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `enabled` | bool | `true` | Enable or disable the plugin |
-| `version` | string | (none) | Version constraint (for future use) |
-| `source` | string | (none) | Plugin source (for future use) |
+| `version` | string | (none) | Plugin version for auto-download |
+| `source` | string | (none) | Plugin source URL (e.g., `github.com/org/repo`) |
+| `signing_key` | string | (none) | PGP public key for signature verification |
 
 ### Disabling a Plugin
 
@@ -307,19 +489,32 @@ Plugin "azurerm" requires tfbreak >= 0.8.0, but current version is 0.7.0
 
 Upgrade tfbreak to the required version.
 
-## Future: Plugin Installation
+## Quick Start: Using Plugins
 
-A future version of tfbreak will include a plugin installation command:
+Here's a complete workflow for using plugins:
 
-```bash
-# Install from GitHub releases (future)
-tfbreak plugin install github.com/jokarl/tfbreak-ruleset-azurerm
+**1. Create `.tfbreak.hcl`:**
 
-# Install specific version (future)
-tfbreak plugin install github.com/jokarl/tfbreak-ruleset-azurerm@0.1.0
+```hcl
+version = 1
 
-# List installed plugins (future)
-tfbreak plugin list
+plugin "azurerm" {
+  enabled = true
+  source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+  version = "0.1.0"
+}
 ```
 
-Until then, plugins must be installed manually as described above.
+**2. Install plugins:**
+
+```bash
+tfbreak --init
+```
+
+**3. Run analysis:**
+
+```bash
+tfbreak check --base main ./
+```
+
+The plugin rules are automatically included in the analysis.

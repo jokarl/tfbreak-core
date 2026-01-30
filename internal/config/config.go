@@ -37,10 +37,11 @@ type ConfigBlockConfig struct {
 
 // PluginConfig defines plugin configuration
 type PluginConfig struct {
-	Name    string  `hcl:"name,label"`
-	Enabled *bool   `hcl:"enabled,attr"`
-	Version string  `hcl:"version,optional"`
-	Source  string  `hcl:"source,optional"`
+	Name       string `hcl:"name,label"`
+	Enabled    *bool  `hcl:"enabled,attr"`
+	Version    string `hcl:"version,optional"`
+	Source     string `hcl:"source,optional"`
+	SigningKey string `hcl:"signing_key,optional"`
 }
 
 // PathsConfig defines path filtering settings

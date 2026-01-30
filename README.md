@@ -220,13 +220,27 @@ See [Rules Reference](docs/rules.md) for detailed documentation of all rules.
 
 tfbreak supports plugins for provider-specific rules (e.g., Azure ForceNew detection).
 
+**1. Configure plugins in `.tfbreak.hcl`:**
+
 ```hcl
+version = 1
+
 plugin "azurerm" {
   enabled = true
-  version = "0.1.0"
   source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+  version = "0.1.0"
 }
 ```
+
+**2. Download plugins:**
+
+```bash
+tfbreak --init
+```
+
+This downloads plugins from GitHub releases with SHA256 checksum verification.
+
+> **Note**: For private plugin repositories, set `GITHUB_TOKEN` or `GH_TOKEN` environment variable.
 
 See [Plugin Guide](docs/user-guide/plugins.md) for details.
 
@@ -243,6 +257,9 @@ See [Plugin Guide](docs/user-guide/plugins.md) for details.
 ## Commands
 
 ```bash
+# Download plugins configured in .tfbreak.hcl
+tfbreak --init
+
 # Compare two directories
 tfbreak check <old_dir> <new_dir> [flags]
 
@@ -263,6 +280,12 @@ tfbreak init
 
 # Show version
 tfbreak version
+```
+
+### Global Flags
+
+```
+  --init                Download plugins configured in .tfbreak.hcl
 ```
 
 ### Check Command Flags
