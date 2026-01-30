@@ -3,6 +3,7 @@
 
 # repos
 tfbreak-ruleset-azurerm/
+tfbreak-plugin-sdk/
 
 # agents
 .claude/settings.local.json

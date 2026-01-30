@@ -7,6 +7,9 @@ func Default() *Config {
 	defaultThreshold := DefaultSimilarityThreshold
 	return &Config{
 		Version: 1,
+		ConfigBlock: &ConfigBlockConfig{
+			PluginDir: "",
+		},
 		Paths: &PathsConfig{
 			Include: []string{"**/*.tf"},
 			Exclude: []string{".terraform/**"},
@@ -29,7 +32,8 @@ func Default() *Config {
 			Enabled:             &renameDisabled,
 			SimilarityThreshold: &defaultThreshold,
 		},
-		Rules: []*RuleConfig{},
+		Rules:   []*RuleConfig{},
+		Plugins: []*PluginConfig{},
 	}
 }
 
@@ -99,6 +103,29 @@ annotations {
 #   # Minimum similarity threshold for rename detection (default: 0.85)
 #   # Value between 0.0 and 1.0, higher = stricter matching
 #   similarity_threshold = 0.85
+# }
+
+# Global settings (tflint-aligned)
+# config {
+#   # Custom plugin directory (overrides default locations)
+#   plugin_dir = "/path/to/plugins"
+# }
+
+# Plugin configuration
+# Plugins are discovered from:
+# 1. plugin_dir from config block above
+# 2. TFBREAK_PLUGIN_DIR environment variable
+# 3. ./.tfbreak.d/plugins/ (project-local)
+# 4. ~/.tfbreak.d/plugins/ (user home)
+#
+# plugin "azurerm" {
+#   enabled = true
+#   version = "0.1.0"
+#   source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+# }
+#
+# plugin "aws" {
+#   enabled = true
 # }
 
 # Per-rule configuration

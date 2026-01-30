@@ -17,15 +17,30 @@ import (
 // Config represents the tfbreak configuration
 type Config struct {
 	Version         int                     `hcl:"version,attr"`
+	ConfigBlock     *ConfigBlockConfig      `hcl:"config,block"`
 	Paths           *PathsConfig            `hcl:"paths,block"`
 	Output          *OutputConfig           `hcl:"output,block"`
 	Policy          *PolicyConfig           `hcl:"policy,block"`
 	Annotations     *AnnotationsConfig      `hcl:"annotations,block"`
 	RenameDetection *RenameDetectionConfig  `hcl:"rename_detection,block"`
 	Rules           []*RuleConfig           `hcl:"rules,block"`
+	Plugins         []*PluginConfig         `hcl:"plugin,block"`
 
 	// Internal: path to the loaded config file (empty if using defaults)
 	configPath string
+}
+
+// ConfigBlockConfig defines global tfbreak settings (tflint-aligned)
+type ConfigBlockConfig struct {
+	PluginDir string `hcl:"plugin_dir,optional"`
+}
+
+// PluginConfig defines plugin configuration
+type PluginConfig struct {
+	Name    string  `hcl:"name,label"`
+	Enabled *bool   `hcl:"enabled,attr"`
+	Version string  `hcl:"version,optional"`
+	Source  string  `hcl:"source,optional"`
 }
 
 // PathsConfig defines path filtering settings
@@ -131,6 +146,44 @@ func (c *Config) GetSimilarityThreshold() float64 {
 	return *c.RenameDetection.SimilarityThreshold
 }
 
+// GetPluginDir returns the configured plugin directory, or empty string if not set
+func (c *Config) GetPluginDir() string {
+	if c.ConfigBlock == nil {
+		return ""
+	}
+	return c.ConfigBlock.PluginDir
+}
+
+// GetPluginConfig returns the configuration for a specific plugin, or nil if not configured
+func (c *Config) GetPluginConfig(name string) *PluginConfig {
+	for _, pc := range c.Plugins {
+		if pc.Name == name {
+			return pc
+		}
+	}
+	return nil
+}
+
+// IsPluginEnabled returns whether a plugin is enabled based on config
+func (c *Config) IsPluginEnabled(name string) bool {
+	pc := c.GetPluginConfig(name)
+	if pc == nil || pc.Enabled == nil {
+		return true // enabled by default if discovered
+	}
+	return *pc.Enabled
+}
+
+// GetEnabledPlugins returns the names of all enabled plugins
+func (c *Config) GetEnabledPlugins() []string {
+	var enabled []string
+	for _, pc := range c.Plugins {
+		if pc.Enabled == nil || *pc.Enabled {
+			enabled = append(enabled, pc.Name)
+		}
+	}
+	return enabled
+}
+
 // Load loads configuration from the specified path or searches for it
 // Search order: configPath (if provided), .tfbreak.hcl in cwd, .tfbreak.hcl in oldDir
 func Load(configPath, oldDir string) (*Config, error) {
@@ -231,6 +284,10 @@ func formatDiagnostics(diags hcl.Diagnostics) string {
 func applyDefaults(cfg *Config) {
 	defaults := Default()
 
+	if cfg.ConfigBlock == nil {
+		cfg.ConfigBlock = defaults.ConfigBlock
+	}
+
 	if cfg.Paths == nil {
 		cfg.Paths = defaults.Paths
 	} else {
@@ -274,5 +331,9 @@ func applyDefaults(cfg *Config) {
 		if cfg.RenameDetection.SimilarityThreshold == nil {
 			cfg.RenameDetection.SimilarityThreshold = defaults.RenameDetection.SimilarityThreshold
 		}
+	}
+
+	if cfg.Plugins == nil {
+		cfg.Plugins = defaults.Plugins
 	}
 }
