@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/jokarl/tfbreak-core/compare/v0.1.0...v0.2.0) (2026-01-30)
+
+
+### Features
+
+* Implement git ref comparison ([#13](https://github.com/jokarl/tfbreak-core/issues/13)) ([8a1c591](https://github.com/jokarl/tfbreak-core/commit/8a1c591290d389f0a2edcb16f77e139501f2b7f2))
+
 ## [0.1.0](https://github.com/jokarl/tfbreak-core/compare/v0.0.1...v0.1.0) (2026-01-30)
 
 
