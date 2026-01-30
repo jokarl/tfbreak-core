@@ -10,23 +10,23 @@ import (
 type Severity int
 
 const (
-	// SeverityInfo is informational, no action needed
-	SeverityInfo Severity = iota
-	// SeverityRisky may cause unexpected behavior changes
-	SeverityRisky
-	// SeverityBreaking will break callers or destroy state
-	SeverityBreaking
+	// SeverityNotice is informational, no action needed
+	SeverityNotice Severity = iota
+	// SeverityWarning may cause unexpected behavior changes
+	SeverityWarning
+	// SeverityError will break callers or destroy state
+	SeverityError
 )
 
 // String returns the string representation of the severity
 func (s Severity) String() string {
 	switch s {
-	case SeverityBreaking:
-		return "BREAKING"
-	case SeverityRisky:
-		return "RISKY"
-	case SeverityInfo:
-		return "INFO"
+	case SeverityError:
+		return "ERROR"
+	case SeverityWarning:
+		return "WARNING"
+	case SeverityNotice:
+		return "NOTICE"
 	default:
 		return "UNKNOWN"
 	}
@@ -54,14 +54,14 @@ func (s *Severity) UnmarshalJSON(data []byte) error {
 // ParseSeverity parses a string into a Severity
 func ParseSeverity(s string) (Severity, error) {
 	switch strings.ToUpper(s) {
-	case "BREAKING":
-		return SeverityBreaking, nil
-	case "RISKY":
-		return SeverityRisky, nil
-	case "INFO":
-		return SeverityInfo, nil
+	case "ERROR":
+		return SeverityError, nil
+	case "WARNING":
+		return SeverityWarning, nil
+	case "NOTICE":
+		return SeverityNotice, nil
 	default:
-		return SeverityInfo, fmt.Errorf("unknown severity: %s", s)
+		return SeverityNotice, fmt.Errorf("unknown severity: %s", s)
 	}
 }
 

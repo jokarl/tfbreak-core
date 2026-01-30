@@ -30,7 +30,7 @@ func (r *RC012) Description() string {
 
 // DefaultSeverity returns the default severity level for this rule.
 func (r *RC012) DefaultSeverity() types.Severity {
-	return types.SeverityRisky
+	return types.SeverityWarning
 }
 
 // Documentation returns the documentation for this rule.

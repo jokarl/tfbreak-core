@@ -38,8 +38,8 @@ func TestDefault(t *testing.T) {
 	if cfg.Policy == nil {
 		t.Fatal("expected policy to be set")
 	}
-	if cfg.Policy.FailOn != "BREAKING" {
-		t.Errorf("expected fail_on 'BREAKING', got %s", cfg.Policy.FailOn)
+	if cfg.Policy.FailOn != "ERROR" {
+		t.Errorf("expected fail_on 'ERROR', got %s", cfg.Policy.FailOn)
 	}
 
 	if cfg.Annotations == nil {
@@ -69,7 +69,7 @@ output {
 }
 
 policy {
-  fail_on = "RISKY"
+  fail_on = "WARNING"
 }
 
 annotations {
@@ -79,7 +79,7 @@ annotations {
 
 rules "required-input-added" {
   enabled  = false
-  severity = "INFO"
+  severity = "NOTICE"
 }
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -109,8 +109,8 @@ rules "required-input-added" {
 		t.Errorf("expected color 'never', got %s", cfg.Output.Color)
 	}
 
-	if cfg.Policy.FailOn != "RISKY" {
-		t.Errorf("expected fail_on 'RISKY', got %s", cfg.Policy.FailOn)
+	if cfg.Policy.FailOn != "WARNING" {
+		t.Errorf("expected fail_on 'WARNING', got %s", cfg.Policy.FailOn)
 	}
 
 	if !cfg.Annotations.RequireReason {
@@ -125,8 +125,8 @@ rules "required-input-added" {
 		t.Error("expected required-input-added to be disabled")
 	}
 
-	sev := cfg.GetRuleSeverity("required-input-added", types.SeverityBreaking)
-	if sev != types.SeverityInfo {
+	sev := cfg.GetRuleSeverity("required-input-added", types.SeverityError)
+	if sev != types.SeverityNotice {
 		t.Errorf("expected required-input-added severity INFO, got %s", sev)
 	}
 }
@@ -274,5 +274,136 @@ func TestIsAnnotationsEnabled(t *testing.T) {
 	cfg.Annotations = nil
 	if !cfg.IsAnnotationsEnabled() {
 		t.Error("expected annotations enabled when block is nil")
+	}
+}
+
+func TestConfig_PluginBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".tfbreak.hcl")
+
+	configContent := `
+version = 1
+
+config {
+  plugin_dir = "/custom/plugin/path"
+}
+
+plugin "azurerm" {
+  enabled = true
+  version = "0.1.0"
+  source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+}
+
+plugin "aws" {
+  enabled = false
+}
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := Load(configPath, "")
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	// Check plugin_dir
+	if cfg.GetPluginDir() != "/custom/plugin/path" {
+		t.Errorf("expected plugin_dir '/custom/plugin/path', got %s", cfg.GetPluginDir())
+	}
+
+	// Check azurerm plugin config
+	azurermCfg := cfg.GetPluginConfig("azurerm")
+	if azurermCfg == nil {
+		t.Fatal("expected azurerm plugin config to exist")
+	}
+	if !cfg.IsPluginEnabled("azurerm") {
+		t.Error("expected azurerm plugin to be enabled")
+	}
+	if azurermCfg.Version != "0.1.0" {
+		t.Errorf("expected azurerm version '0.1.0', got %s", azurermCfg.Version)
+	}
+	if azurermCfg.Source != "github.com/jokarl/tfbreak-ruleset-azurerm" {
+		t.Errorf("expected azurerm source, got %s", azurermCfg.Source)
+	}
+
+	// Check aws plugin config
+	awsCfg := cfg.GetPluginConfig("aws")
+	if awsCfg == nil {
+		t.Fatal("expected aws plugin config to exist")
+	}
+	if cfg.IsPluginEnabled("aws") {
+		t.Error("expected aws plugin to be disabled")
+	}
+
+	// Check unknown plugin (should be enabled by default)
+	if !cfg.IsPluginEnabled("unknown") {
+		t.Error("expected unknown plugin to be enabled by default")
+	}
+}
+
+func TestConfig_PluginDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".tfbreak.hcl")
+
+	configContent := `
+version = 1
+
+config {
+  plugin_dir = "/my/plugins"
+}
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := Load(configPath, "")
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.GetPluginDir() != "/my/plugins" {
+		t.Errorf("expected plugin_dir '/my/plugins', got %s", cfg.GetPluginDir())
+	}
+}
+
+func TestConfig_NoPluginDir(t *testing.T) {
+	cfg := Default()
+	if cfg.GetPluginDir() != "" {
+		t.Errorf("expected empty plugin_dir by default, got %s", cfg.GetPluginDir())
+	}
+}
+
+func TestConfig_GetEnabledPlugins(t *testing.T) {
+	cfg := Default()
+
+	// Add some plugin configs
+	enabled := true
+	disabled := false
+	cfg.Plugins = []*PluginConfig{
+		{Name: "azurerm", Enabled: &enabled},
+		{Name: "aws", Enabled: &disabled},
+		{Name: "gcp"}, // nil Enabled means enabled by default
+	}
+
+	enabledPlugins := cfg.GetEnabledPlugins()
+	if len(enabledPlugins) != 2 {
+		t.Errorf("expected 2 enabled plugins, got %d", len(enabledPlugins))
+	}
+
+	// Check that azurerm and gcp are enabled, aws is not
+	found := make(map[string]bool)
+	for _, name := range enabledPlugins {
+		found[name] = true
+	}
+
+	if !found["azurerm"] {
+		t.Error("expected azurerm to be enabled")
+	}
+	if !found["gcp"] {
+		t.Error("expected gcp to be enabled")
+	}
+	if found["aws"] {
+		t.Error("expected aws to be disabled")
 	}
 }

@@ -16,7 +16,7 @@ func TestJSONRenderer(t *testing.T) {
 			{
 				RuleID:   "BC001",
 				RuleName: "required-input-added",
-				Severity: types.SeverityBreaking,
+				Severity: types.SeverityError,
 				Message:  "New required variable \"foo\" has no default",
 				NewLocation: &types.FileRange{
 					Filename: "variables.tf",
@@ -25,11 +25,11 @@ func TestJSONRenderer(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &JSONRenderer{}
@@ -73,8 +73,8 @@ func TestJSONRenderer(t *testing.T) {
 	if !ok {
 		t.Fatal("summary should be an object")
 	}
-	if summary["breaking"].(float64) != 1 {
-		t.Errorf("summary.breaking = %v, want 1", summary["breaking"])
+	if summary["error"].(float64) != 1 {
+		t.Errorf("summary.error = %v, want 1", summary["error"])
 	}
 }
 
@@ -86,7 +86,7 @@ func TestJSONRenderer_WithRemediation(t *testing.T) {
 			{
 				RuleID:      "BC001",
 				RuleName:    "required-input-added",
-				Severity:    types.SeverityBreaking,
+				Severity:    types.SeverityError,
 				Message:     "New required variable \"foo\" has no default",
 				Remediation: "To fix this issue:\n1. Add a default value\n2. Update callers",
 				NewLocation: &types.FileRange{
@@ -96,11 +96,11 @@ func TestJSONRenderer_WithRemediation(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &JSONRenderer{}
@@ -143,7 +143,7 @@ func TestJSONRenderer_NoRemediation(t *testing.T) {
 			{
 				RuleID:   "BC001",
 				RuleName: "required-input-added",
-				Severity: types.SeverityBreaking,
+				Severity: types.SeverityError,
 				Message:  "New required variable \"foo\" has no default",
 				// No Remediation field set
 				NewLocation: &types.FileRange{
@@ -153,11 +153,11 @@ func TestJSONRenderer_NoRemediation(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &JSONRenderer{}
@@ -195,7 +195,7 @@ func TestJSONRendererEmpty(t *testing.T) {
 		Findings: []*types.Finding{},
 		Summary:  types.Summary{},
 		Result:   "PASS",
-		FailOn:   types.SeverityBreaking,
+		FailOn:   types.SeverityError,
 	}
 
 	renderer := &JSONRenderer{}

@@ -104,11 +104,11 @@ type CheckResult struct {
 
 // Summary contains counts of findings by severity
 type Summary struct {
-	Breaking int `json:"breaking"`
-	Risky    int `json:"risky"`
-	Info     int `json:"info"`
-	Ignored  int `json:"ignored"`
-	Total    int `json:"total"`
+	Error   int `json:"error"`
+	Warning int `json:"warning"`
+	Notice  int `json:"notice"`
+	Ignored int `json:"ignored"`
+	Total   int `json:"total"`
 }
 
 // NewCheckResult creates a new CheckResult
@@ -135,12 +135,12 @@ func (r *CheckResult) Compute() {
 			continue
 		}
 		switch f.Severity {
-		case SeverityBreaking:
-			r.Summary.Breaking++
-		case SeverityRisky:
-			r.Summary.Risky++
-		case SeverityInfo:
-			r.Summary.Info++
+		case SeverityError:
+			r.Summary.Error++
+		case SeverityWarning:
+			r.Summary.Warning++
+		case SeverityNotice:
+			r.Summary.Notice++
 		}
 	}
 	r.Summary.Total = len(r.Findings)
@@ -148,12 +148,12 @@ func (r *CheckResult) Compute() {
 	// Determine pass/fail based on policy
 	failed := false
 	switch r.FailOn {
-	case SeverityBreaking:
-		failed = r.Summary.Breaking > 0
-	case SeverityRisky:
-		failed = r.Summary.Breaking > 0 || r.Summary.Risky > 0
-	case SeverityInfo:
-		failed = r.Summary.Breaking > 0 || r.Summary.Risky > 0 || r.Summary.Info > 0
+	case SeverityError:
+		failed = r.Summary.Error > 0
+	case SeverityWarning:
+		failed = r.Summary.Error > 0 || r.Summary.Warning > 0
+	case SeverityNotice:
+		failed = r.Summary.Error > 0 || r.Summary.Warning > 0 || r.Summary.Notice > 0
 	}
 
 	if failed {

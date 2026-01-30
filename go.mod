@@ -1,12 +1,13 @@
 module github.com/jokarl/tfbreak-core
 
-go 1.23.10
+go 1.23.12
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/fatih/color v1.18.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20260120201749-785479628bd7
+	github.com/jokarl/tfbreak-plugin-sdk v0.2.1
 	github.com/spf13/cobra v1.8.0
 	github.com/zclconf/go-cty v1.16.3
 )

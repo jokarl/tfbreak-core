@@ -7,6 +7,9 @@ func Default() *Config {
 	defaultThreshold := DefaultSimilarityThreshold
 	return &Config{
 		Version: 1,
+		ConfigBlock: &ConfigBlockConfig{
+			PluginDir: "",
+		},
 		Paths: &PathsConfig{
 			Include: []string{"**/*.tf"},
 			Exclude: []string{".terraform/**"},
@@ -16,7 +19,7 @@ func Default() *Config {
 			Color:  "auto",
 		},
 		Policy: &PolicyConfig{
-			FailOn:                "BREAKING",
+			FailOn:                "ERROR",
 			TreatWarningsAsErrors: false,
 		},
 		Annotations: &AnnotationsConfig{
@@ -29,7 +32,8 @@ func Default() *Config {
 			Enabled:             &renameDisabled,
 			SimilarityThreshold: &defaultThreshold,
 		},
-		Rules: []*RuleConfig{},
+		Rules:   []*RuleConfig{},
+		Plugins: []*PluginConfig{},
 	}
 }
 
@@ -67,10 +71,10 @@ output {
 
 # CI policy settings
 policy {
-  # Minimum severity to fail the check: BREAKING, RISKY, INFO (default: BREAKING)
-  fail_on = "BREAKING"
+  # Minimum severity to fail the check: ERROR, WARNING, NOTICE (default: ERROR)
+  fail_on = "ERROR"
 
-  # Treat RISKY findings as errors (default: false)
+  # Treat WARNING findings as errors (default: false)
   treat_warnings_as_errors = false
 }
 
@@ -101,52 +105,75 @@ annotations {
 #   similarity_threshold = 0.85
 # }
 
+# Global settings (tflint-aligned)
+# config {
+#   # Custom plugin directory (overrides default locations)
+#   plugin_dir = "/path/to/plugins"
+# }
+
+# Plugin configuration
+# Plugins are discovered from:
+# 1. plugin_dir from config block above
+# 2. TFBREAK_PLUGIN_DIR environment variable
+# 3. ./.tfbreak.d/plugins/ (project-local)
+# 4. ~/.tfbreak.d/plugins/ (user home)
+#
+# plugin "azurerm" {
+#   enabled = true
+#   version = "0.1.0"
+#   source  = "github.com/jokarl/tfbreak-ruleset-azurerm"
+# }
+#
+# plugin "aws" {
+#   enabled = true
+# }
+
 # Per-rule configuration
 # Uncomment and modify to customize rule behavior
 #
 # rules "BC001" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC002" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC005" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "RC006" {
 #   enabled  = true
-#   severity = "RISKY"
+#   severity = "WARNING"
 # }
 #
 # rules "BC009" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC100" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC101" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC102" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 #
 # rules "BC103" {
 #   enabled  = true
-#   severity = "BREAKING"
+#   severity = "ERROR"
 # }
 `
 }

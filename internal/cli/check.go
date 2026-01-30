@@ -64,7 +64,7 @@ func init() {
 	checkCmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "Verbose output")
 
 	// Policy flags
-	checkCmd.Flags().StringVar(&failOnFlag, "fail-on", "", "Fail on severity: BREAKING, RISKY, INFO")
+	checkCmd.Flags().StringVar(&failOnFlag, "fail-on", "", "Fail on severity: ERROR, WARNING, NOTICE")
 	checkCmd.Flags().StringSliceVar(&enableFlag, "enable", nil, "Enable rules (comma-separated)")
 	checkCmd.Flags().StringSliceVar(&disableFlag, "disable", nil, "Disable rules (comma-separated)")
 	checkCmd.Flags().StringSliceVar(&severityFlags, "severity", nil, "Override rule severity (RULE=SEV)")

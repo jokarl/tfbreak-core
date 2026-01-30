@@ -10,9 +10,9 @@ func TestSeverityString(t *testing.T) {
 		severity Severity
 		want     string
 	}{
-		{SeverityBreaking, "BREAKING"},
-		{SeverityRisky, "RISKY"},
-		{SeverityInfo, "INFO"},
+		{SeverityError, "ERROR"},
+		{SeverityWarning, "WARNING"},
+		{SeverityNotice, "NOTICE"},
 		{Severity(99), "UNKNOWN"},
 	}
 
@@ -33,15 +33,15 @@ func TestSeverityComparison(t *testing.T) {
 		other    Severity
 		expected bool
 	}{
-		{"breaking at least breaking", SeverityBreaking, SeverityBreaking, true},
-		{"breaking at least risky", SeverityBreaking, SeverityRisky, true},
-		{"breaking at least info", SeverityBreaking, SeverityInfo, true},
-		{"risky at least breaking", SeverityRisky, SeverityBreaking, false},
-		{"risky at least risky", SeverityRisky, SeverityRisky, true},
-		{"risky at least info", SeverityRisky, SeverityInfo, true},
-		{"info at least breaking", SeverityInfo, SeverityBreaking, false},
-		{"info at least risky", SeverityInfo, SeverityRisky, false},
-		{"info at least info", SeverityInfo, SeverityInfo, true},
+		{"error at least error", SeverityError, SeverityError, true},
+		{"error at least warning", SeverityError, SeverityWarning, true},
+		{"error at least notice", SeverityError, SeverityNotice, true},
+		{"warning at least error", SeverityWarning, SeverityError, false},
+		{"warning at least warning", SeverityWarning, SeverityWarning, true},
+		{"warning at least notice", SeverityWarning, SeverityNotice, true},
+		{"notice at least error", SeverityNotice, SeverityError, false},
+		{"notice at least warning", SeverityNotice, SeverityWarning, false},
+		{"notice at least notice", SeverityNotice, SeverityNotice, true},
 	}
 
 	for _, tt := range tests {
@@ -60,15 +60,15 @@ func TestParseSeverity(t *testing.T) {
 		want    Severity
 		wantErr bool
 	}{
-		{"BREAKING", SeverityBreaking, false},
-		{"breaking", SeverityBreaking, false},
-		{"Breaking", SeverityBreaking, false},
-		{"RISKY", SeverityRisky, false},
-		{"risky", SeverityRisky, false},
-		{"INFO", SeverityInfo, false},
-		{"info", SeverityInfo, false},
-		{"invalid", SeverityInfo, true},
-		{"", SeverityInfo, true},
+		{"ERROR", SeverityError, false},
+		{"error", SeverityError, false},
+		{"Error", SeverityError, false},
+		{"WARNING", SeverityWarning, false},
+		{"warning", SeverityWarning, false},
+		{"NOTICE", SeverityNotice, false},
+		{"notice", SeverityNotice, false},
+		{"invalid", SeverityNotice, true},
+		{"", SeverityNotice, true},
 	}
 
 	for _, tt := range tests {
@@ -91,25 +91,25 @@ func TestSeverityJSON(t *testing.T) {
 	}
 
 	t.Run("marshal", func(t *testing.T) {
-		w := wrapper{Level: SeverityBreaking}
+		w := wrapper{Level: SeverityError}
 		data, err := json.Marshal(w)
 		if err != nil {
 			t.Fatalf("Marshal error: %v", err)
 		}
-		want := `{"level":"BREAKING"}`
+		want := `{"level":"ERROR"}`
 		if string(data) != want {
 			t.Errorf("Marshal = %s, want %s", data, want)
 		}
 	})
 
 	t.Run("unmarshal", func(t *testing.T) {
-		input := `{"level":"RISKY"}`
+		input := `{"level":"WARNING"}`
 		var w wrapper
 		if err := json.Unmarshal([]byte(input), &w); err != nil {
 			t.Fatalf("Unmarshal error: %v", err)
 		}
-		if w.Level != SeverityRisky {
-			t.Errorf("Unmarshal level = %v, want %v", w.Level, SeverityRisky)
+		if w.Level != SeverityWarning {
+			t.Errorf("Unmarshal level = %v, want %v", w.Level, SeverityWarning)
 		}
 	})
 }

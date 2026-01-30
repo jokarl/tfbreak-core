@@ -84,13 +84,13 @@ func TestEngineCheck(t *testing.T) {
 		Required: true,
 	}
 
-	result := engine.Check("/old", "/new", old, new, types.SeverityBreaking)
+	result := engine.Check("/old", "/new", old, new, types.SeverityError)
 
 	if result.Result != "FAIL" {
 		t.Errorf("Result = %q, want FAIL", result.Result)
 	}
-	if result.Summary.Breaking != 1 {
-		t.Errorf("Summary.Breaking = %d, want 1", result.Summary.Breaking)
+	if result.Summary.Error != 1 {
+		t.Errorf("Summary.Error = %d, want 1", result.Summary.Error)
 	}
 }
 
@@ -100,7 +100,7 @@ func TestEngineCheckPass(t *testing.T) {
 	old := types.NewModuleSnapshot("/old")
 	new := types.NewModuleSnapshot("/new")
 
-	result := engine.Check("/old", "/new", old, new, types.SeverityBreaking)
+	result := engine.Check("/old", "/new", old, new, types.SeverityError)
 
 	if result.Result != "PASS" {
 		t.Errorf("Result = %q, want PASS", result.Result)

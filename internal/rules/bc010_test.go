@@ -67,7 +67,7 @@ func TestBC010_OutputRenameDetected(t *testing.T) {
 	if f.RuleID != "BC010" {
 		t.Errorf("Expected rule ID BC010, got %s", f.RuleID)
 	}
-	if f.Severity != types.SeverityBreaking {
+	if f.Severity != types.SeverityError {
 		t.Errorf("Expected BREAKING severity, got %s", f.Severity)
 	}
 	if f.Metadata["old_name"] != "vpc_id" {
@@ -209,7 +209,7 @@ func TestBC010_RuleMetadata(t *testing.T) {
 	if rule.Name() != "output-renamed" {
 		t.Errorf("Expected name 'output-renamed', got %s", rule.Name())
 	}
-	if rule.DefaultSeverity() != types.SeverityBreaking {
+	if rule.DefaultSeverity() != types.SeverityError {
 		t.Errorf("Expected severity BREAKING, got %s", rule.DefaultSeverity())
 	}
 	if rule.Documentation() == nil {

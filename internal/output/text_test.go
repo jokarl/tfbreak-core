@@ -16,7 +16,7 @@ func TestTextRenderer(t *testing.T) {
 			{
 				RuleID:   "BC001",
 				RuleName: "required-input-added",
-				Severity: types.SeverityBreaking,
+				Severity: types.SeverityError,
 				Message:  "New required variable \"foo\" has no default",
 				NewLocation: &types.FileRange{
 					Filename: "variables.tf",
@@ -25,11 +25,11 @@ func TestTextRenderer(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &TextRenderer{ColorEnabled: false}
@@ -47,7 +47,7 @@ func TestTextRenderer(t *testing.T) {
 	}
 
 	// Check severity
-	if !strings.Contains(output, "BREAKING") {
+	if !strings.Contains(output, "ERROR") {
 		t.Error("output should contain severity")
 	}
 
@@ -80,7 +80,7 @@ func TestTextRenderer_WithRemediation(t *testing.T) {
 			{
 				RuleID:   "BC001",
 				RuleName: "required-input-added",
-				Severity: types.SeverityBreaking,
+				Severity: types.SeverityError,
 				Message:  "New required variable \"foo\" has no default",
 				NewLocation: &types.FileRange{
 					Filename: "variables.tf",
@@ -90,11 +90,11 @@ func TestTextRenderer_WithRemediation(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &TextRenderer{ColorEnabled: false}
@@ -125,7 +125,7 @@ func TestTextRenderer_NoRemediation(t *testing.T) {
 			{
 				RuleID:   "BC001",
 				RuleName: "required-input-added",
-				Severity: types.SeverityBreaking,
+				Severity: types.SeverityError,
 				Message:  "New required variable \"foo\" has no default",
 				NewLocation: &types.FileRange{
 					Filename: "variables.tf",
@@ -135,11 +135,11 @@ func TestTextRenderer_NoRemediation(t *testing.T) {
 			},
 		},
 		Summary: types.Summary{
-			Breaking: 1,
+			Error: 1,
 			Total:    1,
 		},
 		Result: "FAIL",
-		FailOn: types.SeverityBreaking,
+		FailOn: types.SeverityError,
 	}
 
 	renderer := &TextRenderer{ColorEnabled: false}
@@ -164,7 +164,7 @@ func TestTextRendererPass(t *testing.T) {
 		Findings: []*types.Finding{},
 		Summary:  types.Summary{},
 		Result:   "PASS",
-		FailOn:   types.SeverityBreaking,
+		FailOn:   types.SeverityError,
 	}
 
 	renderer := &TextRenderer{ColorEnabled: false}

@@ -30,8 +30,8 @@ func TestBC001_NewRequiredVariable(t *testing.T) {
 	if f.RuleID != "BC001" {
 		t.Errorf("RuleID = %q, want %q", f.RuleID, "BC001")
 	}
-	if f.Severity != types.SeverityBreaking {
-		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityBreaking)
+	if f.Severity != types.SeverityError {
+		t.Errorf("Severity = %v, want %v", f.Severity, types.SeverityError)
 	}
 }
 
