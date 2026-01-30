@@ -1,6 +1,6 @@
 module github.com/jokarl/tfbreak-core
 
-go 1.23.10
+go 1.23.12
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
