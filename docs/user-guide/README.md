@@ -35,10 +35,59 @@ For example, comparing two versions of a module:
 ```bash
 # Compare local directories
 tfbreak check ./v1.0.0 ./v2.0.0
-
-# Compare git worktrees
-tfbreak check /tmp/old-checkout ./
 ```
+
+### Git Ref Comparison
+
+tfbreak can compare directly against git refs without manual checkout.
+
+#### Single-Module Repositories
+
+For repositories where the Terraform configuration is at the root (e.g., `terraform-aws-vpc`):
+
+```bash
+# Compare current directory against a branch
+tfbreak check --base main ./
+
+# Compare against a tag
+tfbreak check --base v1.0.0 ./
+
+# Compare two git refs directly
+tfbreak check --base v1.0.0 --head v2.0.0
+
+# Compare refs in a remote repository
+tfbreak check --repo https://github.com/org/terraform-aws-vpc --base v1.0.0 --head v2.0.0
+```
+
+#### Monorepos
+
+For repositories containing multiple Terraform modules in subdirectories, use the `ref:path` syntax to specify which module to compare:
+
+```
+repo/
+├── modules/
+│   ├── vpc/          # terraform-aws-vpc module
+│   ├── eks/          # terraform-aws-eks module
+│   └── rds/          # terraform-aws-rds module
+└── environments/
+    └── prod/
+```
+
+```bash
+# Compare modules/vpc at main branch against local modules/vpc
+tfbreak check --base main:modules/vpc ./modules/vpc
+
+# Compare a module between two tags
+tfbreak check --base v1.0.0:modules/vpc --head v2.0.0:modules/vpc
+
+# Handle module renames between versions
+tfbreak check --base v1:modules/old-vpc --head v2:modules/vpc
+
+# Remote monorepo comparison
+tfbreak check --repo https://github.com/org/infra --base v1:terraform/prod --head v2:terraform/prod
+```
+
+The `ref:path` syntax follows git's convention (like `git show REVISION:path`). Each ref can have its own path, which is useful when modules are renamed between versions.
 
 ### Understanding the Output
 
@@ -81,14 +130,19 @@ Result: FAIL
 Use tfbreak in CI pipelines to prevent accidental breaking changes:
 
 ```yaml
-# GitHub Actions example
+# GitHub Actions example - using git ref mode (recommended)
+- name: Check for breaking changes
+  run: tfbreak check --base origin/main ./
+```
+
+Or with manual worktree creation for more control:
+
+```yaml
+# GitHub Actions example - manual worktree
 - name: Check for breaking changes
   run: |
-    # Checkout old version to compare against
     git fetch origin main
     git worktree add /tmp/main-branch origin/main
-
-    # Run tfbreak
     tfbreak check /tmp/main-branch ./
 ```
 
@@ -123,7 +177,7 @@ repos:
     hooks:
       - id: tfbreak
         name: tfbreak
-        entry: bash -c 'tfbreak check origin/main .'
+        entry: bash -c 'tfbreak check --base origin/main ./'
         language: system
         pass_filenames: false
 ```
@@ -150,9 +204,16 @@ jobs:
       - name: Install tfbreak
         run: go install github.com/jokarl/tfbreak-core/cmd/tfbreak@latest
       - name: Check for breaking changes
-        run: |
-          git worktree add /tmp/base ${{ github.event.pull_request.base.sha }}
-          tfbreak check /tmp/base ./
+        run: tfbreak check --base ${{ github.event.pull_request.base.sha }} ./
+```
+
+For monorepos with multiple modules:
+
+```yaml
+      - name: Check VPC module
+        run: tfbreak check --base ${{ github.event.pull_request.base.sha }}:modules/vpc ./modules/vpc
+      - name: Check EKS module
+        run: tfbreak check --base ${{ github.event.pull_request.base.sha }}:modules/eks ./modules/eks
 ```
 
 ### Semantic Versioning

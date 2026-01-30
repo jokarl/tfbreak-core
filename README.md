@@ -53,7 +53,14 @@ go build -o tfbreak ./cmd/tfbreak
 Compare two Terraform module versions:
 
 ```bash
+# Directory mode - compare two local directories
 tfbreak check ./old-version ./new-version
+
+# Git ref mode - compare current directory against a branch/tag
+tfbreak check --base main ./
+
+# Compare two git refs directly
+tfbreak check --base v1.0.0 --head v2.0.0
 ```
 
 ### Example Output
@@ -79,6 +86,46 @@ Summary: 1 error, 1 warning, 0 notices
 Result: FAIL
 ```
 
+### Git Ref Comparison
+
+tfbreak can compare against git refs (branches, tags, commits) without manual checkout.
+
+**Single-module repositories** (Terraform config at repo root):
+
+```bash
+# Compare current directory against a branch
+tfbreak check --base main ./
+
+# Compare against a tag
+tfbreak check --base v1.0.0 ./
+
+# Compare two git refs directly
+tfbreak check --base v1.0.0 --head v2.0.0
+
+# Compare refs in a remote repository
+tfbreak check --repo https://github.com/org/terraform-aws-vpc --base v1.0.0 --head v2.0.0
+```
+
+**Monorepos** (multiple modules in subdirectories):
+
+Use the `ref:path` syntax to specify which subdirectory to compare:
+
+```bash
+# Compare modules/vpc at main branch against local modules/vpc
+tfbreak check --base main:modules/vpc ./modules/vpc
+
+# Compare a module between two tags
+tfbreak check --base v1.0.0:modules/vpc --head v2.0.0:modules/vpc
+
+# Handle module renames between versions
+tfbreak check --base v1:modules/old-vpc --head v2:modules/vpc
+
+# Remote monorepo comparison
+tfbreak check --repo https://github.com/org/infra --base v1:terraform/prod --head v2:terraform/prod
+```
+
+The `ref:path` syntax follows git's convention (like `git show REVISION:path`).
+
 ### CI Integration
 
 ```bash
@@ -90,6 +137,9 @@ tfbreak check ./old ./new --fail-on WARNING
 
 # Output as JSON for programmatic processing
 tfbreak check ./old ./new --format json
+
+# CI pipeline: compare PR against base branch
+tfbreak check --base origin/main ./
 ```
 
 ## Configuration
@@ -196,6 +246,15 @@ See [Plugin Guide](docs/user-guide/plugins.md) for details.
 # Compare two directories
 tfbreak check <old_dir> <new_dir> [flags]
 
+# Compare against a git ref
+tfbreak check --base <ref[:path]> [new_dir] [flags]
+
+# Compare two git refs
+tfbreak check --base <ref[:path]> --head <ref[:path]> [flags]
+
+# Compare remote repository refs
+tfbreak check --repo <url> --base <ref[:path]> --head <ref[:path]> [flags]
+
 # Show rule documentation
 tfbreak explain <rule_id>
 
@@ -209,6 +268,11 @@ tfbreak version
 ### Check Command Flags
 
 ```
+Git ref flags:
+  --base string         Git ref for old config (branch, tag, SHA), supports ref:path syntax
+  --head string         Git ref for new config, supports ref:path syntax
+  --repo string         Remote repository URL (requires --base)
+
 Output flags:
   --format string       Output format: text, json
   -o, --output string   Write output to file
