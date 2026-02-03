@@ -19,6 +19,7 @@ import (
 	"github.com/jokarl/tfbreak-core/internal/pathfilter"
 	"github.com/jokarl/tfbreak-core/internal/rules"
 	"github.com/jokarl/tfbreak-core/internal/types"
+	"github.com/jokarl/tfbreak-core/plugin"
 )
 
 var (
@@ -117,11 +118,11 @@ func init() {
 type checkMode int
 
 const (
-	modeDirectory checkMode = iota // Two directory arguments
-	modeLocalRef                   // --base with working directory
-	modeTwoLocalRefs               // --base and --head (local)
-	modeRemoteRefs                 // --repo with --base and --head
-	modeMixed                      // --repo with --base and local new_dir
+	modeDirectory    checkMode = iota // Two directory arguments
+	modeLocalRef                      // --base with working directory
+	modeTwoLocalRefs                  // --base and --head (local)
+	modeRemoteRefs                    // --repo with --base and --head
+	modeMixed                         // --repo with --base and local new_dir
 )
 
 // validateCheckArgs validates the command arguments based on flags
@@ -269,6 +270,13 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		IncludeRemediation: includeRemediationFlag,
 	}
 	result := engine.CheckWithOptions(oldDir, newDir, oldSnapshot, newSnapshot, failOn, checkOpts)
+
+	// Execute plugin rules if any plugins are configured
+	if err := executePluginRules(cfg, oldDir, newDir, result, verboseFlag); err != nil {
+		if verboseFlag {
+			fmt.Fprintf(os.Stderr, "Warning: plugin execution error: %v\n", err)
+		}
+	}
 
 	// Process annotations if enabled
 	if cfg.IsAnnotationsEnabled() && !noAnnotationsFlag {
@@ -660,6 +668,23 @@ Available branches:
   git ls-remote --heads %s`, ref, url, url, url)
 }
 
+// validateSubdirPath checks that a subdirectory path exists within a root directory.
+// Returns a user-friendly error if the path doesn't exist.
+func validateSubdirPath(rootDir, subPath, ref string) error {
+	fullPath := filepath.Join(rootDir, subPath)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("path '%s' does not exist at ref '%s'", subPath, ref)
+		}
+		return fmt.Errorf("cannot access path '%s' at ref '%s': %w", subPath, ref, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path '%s' at ref '%s' is not a directory", subPath, ref)
+	}
+	return nil
+}
+
 // resolveDirectories resolves old and new directories based on mode
 // Returns directories and a cleanup function (may be nil)
 func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, cleanup func(), err error) {
@@ -694,6 +719,10 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 		// Apply path within worktree if specified
 		oldDir = worktree.Path
 		if baseSpec.Path != "" {
+			if err := validateSubdirPath(worktree.Path, baseSpec.Path, baseSpec.Ref); err != nil {
+				worktree.Remove()
+				return "", "", nil, err
+			}
 			oldDir = filepath.Join(worktree.Path, baseSpec.Path)
 		}
 
@@ -727,10 +756,18 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 		// Apply paths within worktrees if specified
 		oldDir = baseWorktree.Path
 		if baseSpec.Path != "" {
+			if err := validateSubdirPath(baseWorktree.Path, baseSpec.Path, baseSpec.Ref); err != nil {
+				cleanup()
+				return "", "", nil, err
+			}
 			oldDir = filepath.Join(baseWorktree.Path, baseSpec.Path)
 		}
 		newDir = headWorktree.Path
 		if headSpec.Path != "" {
+			if err := validateSubdirPath(headWorktree.Path, headSpec.Path, headSpec.Ref); err != nil {
+				cleanup()
+				return "", "", nil, err
+			}
 			newDir = filepath.Join(headWorktree.Path, headSpec.Path)
 		}
 
@@ -751,10 +788,18 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 		// Apply paths within clones if specified
 		oldDir = baseClone.Path
 		if baseSpec.Path != "" {
+			if err := validateSubdirPath(baseClone.Path, baseSpec.Path, baseSpec.Ref); err != nil {
+				cleanup()
+				return "", "", nil, err
+			}
 			oldDir = filepath.Join(baseClone.Path, baseSpec.Path)
 		}
 		newDir = headClone.Path
 		if headSpec.Path != "" {
+			if err := validateSubdirPath(headClone.Path, headSpec.Path, headSpec.Ref); err != nil {
+				cleanup()
+				return "", "", nil, err
+			}
 			newDir = filepath.Join(headClone.Path, headSpec.Path)
 		}
 
@@ -772,6 +817,10 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 		// Apply path within clone if specified
 		oldDir = baseClone.Path
 		if baseSpec.Path != "" {
+			if err := validateSubdirPath(baseClone.Path, baseSpec.Path, baseSpec.Ref); err != nil {
+				baseClone.Remove()
+				return "", "", nil, err
+			}
 			oldDir = filepath.Join(baseClone.Path, baseSpec.Path)
 		}
 
@@ -779,4 +828,58 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 	}
 
 	return "", "", nil, errors.New("unknown mode")
+}
+
+// executePluginRules discovers, loads, and executes plugin rules.
+// Plugin findings are added to the result.
+func executePluginRules(cfg *config.Config, oldDir, newDir string, result *types.CheckResult, verbose bool) error {
+	// Create plugin manager
+	mgr := plugin.NewManager(cfg)
+	defer mgr.Close()
+
+	// Discover and load plugins
+	count, loadErrs := mgr.DiscoverAndLoad()
+	if len(loadErrs) > 0 && verbose {
+		for _, err := range loadErrs {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+	}
+
+	// If no plugins loaded, nothing to do
+	if count == 0 {
+		return nil
+	}
+
+	if verbose {
+		summaries := mgr.GetLoadedPlugins()
+		for _, s := range summaries {
+			fmt.Fprintf(os.Stderr, "Loaded plugin: %s v%s (%d rules)\n", s.Name, s.Version, s.RuleCount)
+		}
+	}
+
+	// Load HCL files for plugins
+	oldFiles, err := plugin.LoadHCLFiles(oldDir)
+	if err != nil {
+		return fmt.Errorf("failed to load old HCL files: %w", err)
+	}
+
+	newFiles, err := plugin.LoadHCLFiles(newDir)
+	if err != nil {
+		return fmt.Errorf("failed to load new HCL files: %w", err)
+	}
+
+	// Execute plugin rules
+	findings, execErrs := mgr.ExecuteRules(oldFiles, newFiles)
+	if len(execErrs) > 0 && verbose {
+		for _, err := range execErrs {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		}
+	}
+
+	// Add plugin findings to result
+	for _, f := range findings {
+		result.AddFinding(f)
+	}
+
+	return nil
 }
