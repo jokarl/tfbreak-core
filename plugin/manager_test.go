@@ -61,6 +61,9 @@ func TestManager_GetLoadedPlugins_Empty(t *testing.T) {
 }
 
 func TestManager_DiscoverAndLoad_NoPlugins(t *testing.T) {
+	cleanup := isolatePluginDiscovery(t)
+	defer cleanup()
+
 	// Create config with non-existent plugin directory
 	cfg := config.Default()
 	cfg.ConfigBlock = &config.ConfigBlockConfig{
