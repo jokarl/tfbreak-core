@@ -119,7 +119,10 @@ func (r *Runner) getModuleContent(files map[string]*hcl.File, schema *hclext.Bod
 			if schema != nil {
 				for _, bs := range schema.Blocks {
 					if bs.Type == block.Type && bs.Body != nil {
-						nestedContent, _ := r.extractBlockContent(block.Body, bs.Body)
+						nestedContent, err := r.extractBlockContent(block.Body, bs.Body)
+						if err != nil {
+							return nil, err
+						}
 						b.Body = nestedContent
 					}
 				}
