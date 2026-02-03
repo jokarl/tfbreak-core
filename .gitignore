@@ -11,6 +11,7 @@ tfbreak-plugin-sdk/
 # Build output
 bin/
 dist/
+tfbreak
 
 # Binaries for programs and plugins
 *.exe
