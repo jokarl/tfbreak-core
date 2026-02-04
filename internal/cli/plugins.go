@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -31,15 +32,34 @@ Plugins must be named 'tfbreak-ruleset-{name}' to be discovered.`,
 	RunE: runPluginsList,
 }
 
+var pluginInstallCmd = &cobra.Command{
+	Use:   "install <source>[@version]",
+	Short: "Install a plugin from GitHub releases",
+	Long: `Install a plugin from GitHub releases.
+
+The source must be in the format 'github.com/{owner}/{repo}'.
+An optional version can be specified with @version (e.g., @0.2.0).
+If no version is specified, the latest release is downloaded.
+
+Examples:
+  tfbreak plugins install github.com/jokarl/tfbreak-ruleset-azurerm
+  tfbreak plugins install github.com/jokarl/tfbreak-ruleset-azurerm@0.2.0`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPluginInstall,
+}
+
 var (
-	pluginsListConfigPath string
+	pluginsListConfigPath    string
+	pluginInstallConfigPath  string
 )
 
 func init() {
 	rootCmd.AddCommand(pluginsCmd)
 	pluginsCmd.AddCommand(pluginsListCmd)
+	pluginsCmd.AddCommand(pluginInstallCmd)
 
 	pluginsListCmd.Flags().StringVarP(&pluginsListConfigPath, "config", "c", "", "Path to config file")
+	pluginInstallCmd.Flags().StringVarP(&pluginInstallConfigPath, "config", "c", "", "Path to config file")
 }
 
 func runPluginsList(cmd *cobra.Command, args []string) error {
@@ -92,4 +112,55 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Total: %d discovered, %d enabled\n", len(plugins), len(enabled))
 
 	return nil
+}
+
+func runPluginInstall(cmd *cobra.Command, args []string) error {
+	// Parse source and optional version from argument
+	arg := args[0]
+	source, version := parseSourceArg(arg)
+
+	// Load config to get plugin directory
+	cfg, err := config.Load(pluginInstallConfigPath, "")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Determine plugin directory
+	pluginDir := cfg.GetPluginDir()
+	if pluginDir == "" {
+		pluginDir = plugin.GetDefaultPluginDir()
+	}
+
+	// Create downloader
+	downloader := plugin.NewDownloader(pluginDir)
+
+	// Display what we're doing
+	if version == "" || version == "latest" {
+		fmt.Printf("Installing %s (latest)...\n", source)
+	} else {
+		fmt.Printf("Installing %s@%s...\n", source, version)
+	}
+
+	// Download the plugin
+	if err := downloader.Download(source, version); err != nil {
+		return fmt.Errorf("failed to install plugin: %w", err)
+	}
+
+	fmt.Printf("Plugin installed successfully to %s\n", pluginDir)
+	return nil
+}
+
+// parseSourceArg parses a source[@version] argument.
+// Returns the source and version (empty string if not specified).
+func parseSourceArg(arg string) (source, version string) {
+	// Check for @version suffix
+	if idx := strings.LastIndex(arg, "@"); idx != -1 {
+		// Make sure @ is not part of the source (e.g., not in the middle of the path)
+		potentialVersion := arg[idx+1:]
+		// Version should not contain / (which would indicate it's part of the path)
+		if !strings.Contains(potentialVersion, "/") && potentialVersion != "" {
+			return arg[:idx], potentialVersion
+		}
+	}
+	return arg, ""
 }

@@ -832,13 +832,14 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 
 // executePluginRules discovers, loads, and executes plugin rules.
 // Plugin findings are added to the result.
+// Auto-downloads missing plugins that have a source configured.
 func executePluginRules(cfg *config.Config, oldDir, newDir string, result *types.CheckResult, verbose bool) error {
 	// Create plugin manager
 	mgr := plugin.NewManager(cfg)
 	defer mgr.Close()
 
-	// Discover and load plugins
-	count, loadErrs := mgr.DiscoverAndLoad()
+	// Discover and load plugins (with auto-download enabled)
+	count, loadErrs := mgr.DiscoverAndLoadWithAutoDownload(true)
 	if len(loadErrs) > 0 && verbose {
 		for _, err := range loadErrs {
 			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)

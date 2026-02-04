@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -171,4 +172,77 @@ func GetEnabledPlugins(plugins []PluginInfo) []PluginInfo {
 		}
 	}
 	return enabled
+}
+
+// DiscoverWithAutoDownload discovers plugins and optionally downloads missing ones.
+// For each plugin configured in config with a source field, it checks if the plugin
+// is already discovered locally. If not found and autoDownload is true, it downloads
+// the plugin from the configured source.
+func DiscoverWithAutoDownload(cfg *config.Config, autoDownload bool) ([]PluginInfo, []error) {
+	var downloadErrors []error
+
+	// First, try to discover existing plugins
+	plugins, err := Discover(cfg)
+	if err != nil {
+		return nil, []error{fmt.Errorf("plugin discovery failed: %w", err)}
+	}
+
+	// If auto-download is disabled, return what we found
+	if !autoDownload {
+		return plugins, nil
+	}
+
+	// Build a map of discovered plugin names for quick lookup
+	discovered := make(map[string]bool)
+	for _, p := range plugins {
+		discovered[p.Name] = true
+	}
+
+	// Check each configured plugin
+	needsRediscovery := false
+	for _, pc := range cfg.Plugins {
+		// Skip if plugin is disabled
+		if pc.Enabled != nil && !*pc.Enabled {
+			continue
+		}
+
+		// Skip if no source configured
+		if pc.Source == "" {
+			continue
+		}
+
+		// Skip if already discovered
+		if discovered[pc.Name] {
+			continue
+		}
+
+		// Plugin is configured with a source but not found locally - download it
+		pluginDir := cfg.GetPluginDir()
+		if pluginDir == "" {
+			pluginDir = GetDefaultPluginDir()
+		}
+
+		downloader := NewDownloader(pluginDir)
+		version := pc.Version
+		if version == "" {
+			version = "latest"
+		}
+
+		if err := downloader.Download(pc.Source, version); err != nil {
+			downloadErrors = append(downloadErrors, fmt.Errorf("failed to download plugin %s: %w", pc.Name, err))
+			continue
+		}
+
+		needsRediscovery = true
+	}
+
+	// Re-discover if any plugins were downloaded
+	if needsRediscovery {
+		plugins, err = Discover(cfg)
+		if err != nil {
+			downloadErrors = append(downloadErrors, fmt.Errorf("plugin re-discovery failed: %w", err))
+		}
+	}
+
+	return plugins, downloadErrors
 }
