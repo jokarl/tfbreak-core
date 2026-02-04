@@ -424,3 +424,134 @@ func runGit(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
 }
+
+func TestListRemoteRefs_LocalRepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a "remote" repository (local bare repo)
+	remoteDir := t.TempDir()
+	setupBareRepo(t, remoteDir)
+
+	// Create a local repo and push to the "remote"
+	localDir := t.TempDir()
+	setupTestRepo(t, localDir)
+	createTag(t, localDir, "v1.0.0")
+	createTag(t, localDir, "v2.0.0")
+	addRemoteAndPush(t, localDir, remoteDir)
+	// Push the tags
+	runGit(t, localDir, "push", "origin", "--tags")
+
+	// List all refs
+	refs, err := ListRemoteRefs(remoteDir)
+	if err != nil {
+		t.Fatalf("ListRemoteRefs() error = %v", err)
+	}
+
+	// Should have at least some refs
+	if len(refs) == 0 {
+		t.Error("ListRemoteRefs returned empty map, expected some refs")
+	}
+
+	// Check for tags
+	hasTag := false
+	for ref := range refs {
+		if strings.HasPrefix(ref, "refs/tags/") {
+			hasTag = true
+			break
+		}
+	}
+	if !hasTag {
+		t.Error("ListRemoteRefs didn't return any tags")
+	}
+}
+
+func TestListRemoteRefs_WithPattern(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a "remote" repository (local bare repo)
+	remoteDir := t.TempDir()
+	setupBareRepo(t, remoteDir)
+
+	// Create a local repo and push to the "remote"
+	localDir := t.TempDir()
+	setupTestRepo(t, localDir)
+	createTag(t, localDir, "v1.0.0")
+	addRemoteAndPush(t, localDir, remoteDir)
+	runGit(t, localDir, "push", "origin", "--tags")
+
+	// List only tags
+	refs, err := ListRemoteRefs(remoteDir, "refs/tags/*")
+	if err != nil {
+		t.Fatalf("ListRemoteRefs() error = %v", err)
+	}
+
+	// All refs should be tags
+	for ref := range refs {
+		if !strings.HasPrefix(ref, "refs/tags/") {
+			t.Errorf("ListRemoteRefs with tags pattern returned non-tag ref: %s", ref)
+		}
+	}
+}
+
+func TestSplitLines(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "single line no newline",
+			input: "abc123def456\trefs/heads/main",
+			want:  []string{"abc123def456\trefs/heads/main"},
+		},
+		{
+			name:  "single line with newline",
+			input: "abc123def456\trefs/heads/main\n",
+			want:  []string{"abc123def456\trefs/heads/main"},
+		},
+		{
+			name:  "multiple lines",
+			input: "abc123\trefs/heads/main\ndef456\trefs/tags/v1.0.0\n",
+			want:  []string{"abc123\trefs/heads/main", "def456\trefs/tags/v1.0.0"},
+		},
+		{
+			name:  "multiple lines no trailing newline",
+			input: "abc123\trefs/heads/main\ndef456\trefs/tags/v1.0.0",
+			want:  []string{"abc123\trefs/heads/main", "def456\trefs/tags/v1.0.0"},
+		},
+		{
+			name:  "lines with empty line in middle",
+			input: "abc123\trefs/heads/main\n\ndef456\trefs/tags/v1.0.0\n",
+			want:  []string{"abc123\trefs/heads/main", "def456\trefs/tags/v1.0.0"},
+		},
+		{
+			name:  "only newlines",
+			input: "\n\n\n",
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitLines(tt.input)
+			if len(got) != len(tt.want) {
+				t.Errorf("splitLines(%q) returned %d lines, want %d", tt.input, len(got), len(tt.want))
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitLines(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

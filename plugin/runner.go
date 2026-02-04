@@ -119,7 +119,10 @@ func (r *Runner) getModuleContent(files map[string]*hcl.File, schema *hclext.Bod
 			if schema != nil {
 				for _, bs := range schema.Blocks {
 					if bs.Type == block.Type && bs.Body != nil {
-						nestedContent, _ := r.extractBlockContent(block.Body, bs.Body)
+						nestedContent, err := r.extractBlockContent(block.Body, bs.Body)
+						if err != nil {
+							return nil, err
+						}
 						b.Body = nestedContent
 					}
 				}
@@ -164,7 +167,7 @@ func (r *Runner) getResourceContent(files map[string]*hcl.File, resourceType str
 	return result, nil
 }
 
-// extractBlockContent extracts nested block content.
+// extractBlockContent extracts nested block content recursively.
 func (r *Runner) extractBlockContent(body hcl.Body, schema *hclext.BodySchema) (*hclext.BodyContent, error) {
 	if body == nil || schema == nil {
 		return nil, nil
@@ -176,5 +179,39 @@ func (r *Runner) extractBlockContent(body hcl.Body, schema *hclext.BodySchema) (
 		return nil, diags
 	}
 
-	return hclext.FromHCLBodyContent(bodyContent), nil
+	content := hclext.FromHCLBodyContent(bodyContent)
+
+	// Recursively process nested blocks
+	for i, block := range content.Blocks {
+		for _, bs := range schema.Blocks {
+			if bs.Type == block.Type && bs.Body != nil {
+				// Find the original HCL block to get its body
+				for _, hclBlock := range bodyContent.Blocks {
+					if hclBlock.Type == block.Type && labelsMatch(hclBlock.Labels, block.Labels) {
+						nestedContent, err := r.extractBlockContent(hclBlock.Body, bs.Body)
+						if err != nil {
+							return nil, err
+						}
+						content.Blocks[i].Body = nestedContent
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return content, nil
+}
+
+// labelsMatch checks if two label slices are equal.
+func labelsMatch(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
 }

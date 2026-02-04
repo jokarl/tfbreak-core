@@ -281,3 +281,312 @@ func TestNewRunnerFromContent_InvalidHCL(t *testing.T) {
 		t.Error("expected error for invalid HCL, got nil")
 	}
 }
+
+func TestRunner_GetResourceContent_WithNestedAttributes(t *testing.T) {
+	runner, err := NewRunnerFromContent(
+		map[string]string{
+			"main.tf": `
+resource "azurerm_storage_account" "example" {
+  name     = "storageacct"
+  location = "westeurope"
+
+  network_rules {
+    default_action = "Deny"
+    ip_rules       = ["10.0.0.0/8"]
+  }
+}`,
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerFromContent() error = %v", err)
+	}
+
+	// Schema that requests nested block content
+	schema := &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{
+			{Name: "name"},
+			{Name: "location"},
+		},
+		Blocks: []hclext.BlockSchema{
+			{
+				Type: "network_rules",
+				Body: &hclext.BodySchema{
+					Attributes: []hclext.AttributeSchema{
+						{Name: "default_action"},
+						{Name: "ip_rules"},
+					},
+				},
+			},
+		},
+	}
+
+	content, err := runner.GetOldResourceContent("azurerm_storage_account", schema, nil)
+	if err != nil {
+		t.Fatalf("GetOldResourceContent() error = %v", err)
+	}
+
+	if len(content.Blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1", len(content.Blocks))
+	}
+
+	block := content.Blocks[0]
+	if block.Body == nil {
+		t.Fatal("block.Body is nil")
+	}
+
+	// Check that we have the nested network_rules block
+	networkRulesFound := false
+	for _, nestedBlock := range block.Body.Blocks {
+		if nestedBlock.Type == "network_rules" {
+			networkRulesFound = true
+			if nestedBlock.Body == nil {
+				t.Error("network_rules body is nil")
+			}
+		}
+	}
+
+	if !networkRulesFound {
+		t.Error("network_rules block not found in nested content")
+	}
+}
+
+func TestRunner_GetResourceContent_DeeplyNested(t *testing.T) {
+	// Test three levels of nesting: resource > blob_properties > cors_rule
+	runner, err := NewRunnerFromContent(
+		map[string]string{
+			"main.tf": `
+resource "azurerm_storage_account" "example" {
+  name = "storageacct"
+
+  blob_properties {
+    versioning_enabled = true
+
+    cors_rule {
+      allowed_methods = ["GET", "POST"]
+      allowed_origins = ["*"]
+    }
+  }
+}`,
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerFromContent() error = %v", err)
+	}
+
+	// Three-level nested schema
+	schema := &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{
+			{Name: "name"},
+		},
+		Blocks: []hclext.BlockSchema{
+			{
+				Type: "blob_properties",
+				Body: &hclext.BodySchema{
+					Attributes: []hclext.AttributeSchema{
+						{Name: "versioning_enabled"},
+					},
+					Blocks: []hclext.BlockSchema{
+						{
+							Type: "cors_rule",
+							Body: &hclext.BodySchema{
+								Attributes: []hclext.AttributeSchema{
+									{Name: "allowed_methods"},
+									{Name: "allowed_origins"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	content, err := runner.GetOldResourceContent("azurerm_storage_account", schema, nil)
+	if err != nil {
+		t.Fatalf("GetOldResourceContent() error = %v", err)
+	}
+
+	if len(content.Blocks) != 1 {
+		t.Fatalf("got %d resource blocks, want 1", len(content.Blocks))
+	}
+
+	resourceBlock := content.Blocks[0]
+	if resourceBlock.Body == nil {
+		t.Fatal("resource block body is nil")
+	}
+
+	// Find blob_properties
+	var blobProps *hclext.Block
+	for _, b := range resourceBlock.Body.Blocks {
+		if b.Type == "blob_properties" {
+			blobProps = b
+			break
+		}
+	}
+	if blobProps == nil {
+		t.Fatal("blob_properties block not found")
+	}
+	if blobProps.Body == nil {
+		t.Fatal("blob_properties body is nil")
+	}
+
+	// Verify versioning_enabled attribute
+	if blobProps.Body.Attributes["versioning_enabled"] == nil {
+		t.Error("versioning_enabled attribute not found in blob_properties")
+	}
+
+	// Find cors_rule (third level)
+	var corsRule *hclext.Block
+	for _, b := range blobProps.Body.Blocks {
+		if b.Type == "cors_rule" {
+			corsRule = b
+			break
+		}
+	}
+	if corsRule == nil {
+		t.Fatal("cors_rule block not found (third level)")
+	}
+	if corsRule.Body == nil {
+		t.Fatal("cors_rule body is nil")
+	}
+
+	// Verify deeply nested attributes
+	if corsRule.Body.Attributes["allowed_methods"] == nil {
+		t.Error("allowed_methods attribute not found in cors_rule")
+	}
+	if corsRule.Body.Attributes["allowed_origins"] == nil {
+		t.Error("allowed_origins attribute not found in cors_rule")
+	}
+}
+
+func TestRunner_GetModuleContent_WithMultipleFiles(t *testing.T) {
+	runner, err := NewRunnerFromContent(
+		map[string]string{
+			"main.tf": `
+variable "env" {
+  default = "prod"
+}`,
+			"variables.tf": `
+variable "region" {
+  default = "westeurope"
+}`,
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerFromContent() error = %v", err)
+	}
+
+	schema := &hclext.BodySchema{
+		Blocks: []hclext.BlockSchema{
+			{
+				Type:       "variable",
+				LabelNames: []string{"name"},
+			},
+		},
+	}
+
+	content, err := runner.GetOldModuleContent(schema, nil)
+	if err != nil {
+		t.Fatalf("GetOldModuleContent() error = %v", err)
+	}
+
+	if len(content.Blocks) != 2 {
+		t.Errorf("got %d variable blocks, want 2 (from multiple files)", len(content.Blocks))
+	}
+
+	// Verify both variables are found
+	varNames := make(map[string]bool)
+	for _, block := range content.Blocks {
+		if len(block.Labels) > 0 {
+			varNames[block.Labels[0]] = true
+		}
+	}
+
+	if !varNames["env"] {
+		t.Error("variable 'env' not found")
+	}
+	if !varNames["region"] {
+		t.Error("variable 'region' not found")
+	}
+}
+
+func TestRunner_GetResourceContent_NoMatchingResources(t *testing.T) {
+	runner, err := NewRunnerFromContent(
+		map[string]string{
+			"main.tf": `
+resource "azurerm_resource_group" "example" {
+  name = "my-rg"
+}`,
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		t.Fatalf("NewRunnerFromContent() error = %v", err)
+	}
+
+	schema := &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{
+			{Name: "name"},
+		},
+	}
+
+	// Request a resource type that doesn't exist
+	content, err := runner.GetOldResourceContent("azurerm_virtual_network", schema, nil)
+	if err != nil {
+		t.Fatalf("GetOldResourceContent() error = %v", err)
+	}
+
+	if len(content.Blocks) != 0 {
+		t.Errorf("got %d blocks, want 0 for non-existent resource type", len(content.Blocks))
+	}
+}
+
+func TestRunner_EmptyFiles(t *testing.T) {
+	runner := NewRunner(nil, nil)
+
+	schema := &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{
+			{Name: "test"},
+		},
+	}
+
+	// Should not panic with nil files
+	content, err := runner.GetOldModuleContent(schema, nil)
+	if err != nil {
+		t.Fatalf("GetOldModuleContent() error = %v", err)
+	}
+
+	if content == nil {
+		t.Fatal("content should not be nil")
+	}
+}
+
+func TestLabelsMatch(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        []string
+		b        []string
+		expected bool
+	}{
+		{"both empty", []string{}, []string{}, true},
+		{"both nil", nil, nil, true},
+		{"same single", []string{"foo"}, []string{"foo"}, true},
+		{"same multiple", []string{"foo", "bar"}, []string{"foo", "bar"}, true},
+		{"different length", []string{"foo"}, []string{"foo", "bar"}, false},
+		{"different values", []string{"foo"}, []string{"bar"}, false},
+		{"one nil one empty", nil, []string{}, true},
+		{"different order", []string{"foo", "bar"}, []string{"bar", "foo"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := labelsMatch(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("labelsMatch(%v, %v) = %v, want %v", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}

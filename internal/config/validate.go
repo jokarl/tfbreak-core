@@ -96,10 +96,10 @@ func Validate(cfg *Config) error {
 	// Validate output format
 	if cfg.Output != nil && cfg.Output.Format != "" {
 		switch cfg.Output.Format {
-		case "text", "json":
+		case "text", "json", "compact", "checkstyle", "junit", "sarif":
 			// valid
 		default:
-			return fmt.Errorf("invalid output format: %s (must be 'text' or 'json')", cfg.Output.Format)
+			return fmt.Errorf("invalid output format: %s (must be 'text', 'json', 'compact', 'checkstyle', 'junit', or 'sarif')", cfg.Output.Format)
 		}
 	}
 

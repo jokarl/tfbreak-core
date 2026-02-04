@@ -93,3 +93,27 @@ func TestIsModuleAddress(t *testing.T) {
 		})
 	}
 }
+
+func TestVariableSignature_IsNullable(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	tests := []struct {
+		name     string
+		nullable *bool
+		want     bool
+	}{
+		{"nil defaults to true", nil, true},
+		{"explicit true", &trueVal, true},
+		{"explicit false", &falseVal, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &VariableSignature{Nullable: tt.nullable}
+			if got := v.IsNullable(); got != tt.want {
+				t.Errorf("IsNullable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

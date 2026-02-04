@@ -9,6 +9,30 @@ import (
 	"github.com/jokarl/tfbreak-core/internal/config"
 )
 
+// isolatePluginDiscovery sets up test isolation by pointing HOME to a temp directory
+// and clearing the plugin dir environment variable. This prevents tests from finding
+// plugins installed in the user's actual home directory.
+// Returns a cleanup function that must be deferred.
+func isolatePluginDiscovery(t *testing.T) func() {
+	t.Helper()
+
+	// Save original values
+	origHome := os.Getenv("HOME")
+	origPluginDir := os.Getenv(PluginDirEnv)
+
+	// Create isolated temp home
+	tmpHome := t.TempDir()
+	os.Setenv("HOME", tmpHome)
+	os.Unsetenv(PluginDirEnv)
+
+	return func() {
+		os.Setenv("HOME", origHome)
+		if origPluginDir != "" {
+			os.Setenv(PluginDirEnv, origPluginDir)
+		}
+	}
+}
+
 func TestDiscover_ConfigPath(t *testing.T) {
 	// Create temp directory with a plugin
 	tmpDir := t.TempDir()
@@ -85,6 +109,9 @@ func TestDiscover_EnvVar(t *testing.T) {
 }
 
 func TestDiscover_NamingConvention(t *testing.T) {
+	cleanup := isolatePluginDiscovery(t)
+	defer cleanup()
+
 	tmpDir := t.TempDir()
 
 	// Create files with different naming conventions
@@ -226,6 +253,9 @@ func TestDiscover_EnabledStatus(t *testing.T) {
 }
 
 func TestDiscover_EmptyDirectory(t *testing.T) {
+	cleanup := isolatePluginDiscovery(t)
+	defer cleanup()
+
 	tmpDir := t.TempDir()
 
 	cfg := config.Default()

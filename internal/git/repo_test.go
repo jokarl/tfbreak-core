@@ -359,6 +359,147 @@ func runGitCmd(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func TestIsGitRepository_True(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a repository
+	repoDir := t.TempDir()
+	setupFullTestRepo(t, repoDir)
+
+	if !IsGitRepository(repoDir) {
+		t.Error("IsGitRepository() = false, want true for git repository")
+	}
+}
+
+func TestIsGitRepository_False(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a regular directory (not a git repo)
+	dir := t.TempDir()
+
+	if IsGitRepository(dir) {
+		t.Error("IsGitRepository() = true, want false for non-git directory")
+	}
+}
+
+func TestIsGitRepository_Subdirectory(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a repository
+	repoDir := t.TempDir()
+	setupFullTestRepo(t, repoDir)
+
+	// Create a nested subdirectory
+	subDir := filepath.Join(repoDir, "nested", "dir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdirectory: %v", err)
+	}
+
+	if !IsGitRepository(subDir) {
+		t.Error("IsGitRepository() = false, want true for subdirectory of git repo")
+	}
+}
+
+func TestGetCurrentBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a repository
+	repoDir := t.TempDir()
+	setupFullTestRepo(t, repoDir)
+
+	branch, err := GetCurrentBranch(repoDir)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch() error = %v", err)
+	}
+
+	// Modern git defaults to main, older versions use master
+	if branch != "main" && branch != "master" {
+		t.Errorf("GetCurrentBranch() = %q, want 'main' or 'master'", branch)
+	}
+}
+
+func TestGetCurrentBranch_DetachedHead(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a repository with history
+	repoDir := t.TempDir()
+	setupFullTestRepoWithHistory(t, repoDir)
+
+	// Get the HEAD SHA
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoDir
+	headOutput, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to get HEAD: %v", err)
+	}
+	headSHA := string(headOutput)[:40] // Get the short SHA
+
+	// Checkout a detached HEAD
+	runGitCmd(t, repoDir, "checkout", headSHA)
+
+	branch, err := GetCurrentBranch(repoDir)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch() error = %v", err)
+	}
+
+	// In detached HEAD state, branch should be empty
+	if branch != "" {
+		t.Errorf("GetCurrentBranch() in detached HEAD = %q, want empty string", branch)
+	}
+}
+
+func TestGetHEAD(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a repository
+	repoDir := t.TempDir()
+	setupFullTestRepo(t, repoDir)
+
+	head, err := GetHEAD(repoDir)
+	if err != nil {
+		t.Fatalf("GetHEAD() error = %v", err)
+	}
+
+	// HEAD should be a 40-character hex string
+	if len(head) != 40 {
+		t.Errorf("GetHEAD() = %q, want 40-character SHA", head)
+	}
+
+	// Verify it's valid hex
+	for _, c := range head {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			t.Errorf("GetHEAD() contains invalid character: %c", c)
+			break
+		}
+	}
+}
+
+func TestGetHEAD_NotGitRepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed, skipping test")
+	}
+
+	// Create a regular directory (not a git repo)
+	dir := t.TempDir()
+
+	_, err := GetHEAD(dir)
+	if err == nil {
+		t.Error("GetHEAD() in non-git directory should return error")
+	}
+}
+
 // Helper to check for ErrNotARepository error type
 func isNotARepositoryError(err error) bool {
 	if err == nil {
