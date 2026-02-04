@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/jokarl/tfbreak-core/compare/v0.3.0...v0.4.0) (2026-02-04)
+
+
+### Features
+
+* **plugin:** add plugin auto-download and simplify CLI ([#20](https://github.com/jokarl/tfbreak-core/issues/20)) ([820e2fc](https://github.com/jokarl/tfbreak-core/commit/820e2fca3e69c9de0ba7ab57d8b5b324889eb2ea))
+
 ## [0.3.0](https://github.com/jokarl/tfbreak-core/compare/v0.2.0...v0.3.0) (2026-02-04)
 
 
