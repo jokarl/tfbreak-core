@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/jokarl/tfbreak-core/compare/v0.2.0...v0.3.0) (2026-02-04)
+
+
+### Features
+
+* add gRPC plugin system and multiple output formats ([7528cbb](https://github.com/jokarl/tfbreak-core/commit/7528cbb2309c48110e52a72d6d7d853726332335))
+
 ## [0.2.0](https://github.com/jokarl/tfbreak-core/compare/v0.1.0...v0.2.0) (2026-01-30)
 
 
