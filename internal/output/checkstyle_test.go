@@ -262,6 +262,116 @@ func TestCheckstyleRenderer_Empty(t *testing.T) {
 	}
 }
 
+func TestMapToCheckstyleSeverity_AllCases(t *testing.T) {
+	tests := []struct {
+		severity types.Severity
+		expected string
+	}{
+		{types.SeverityError, "error"},
+		{types.SeverityWarning, "warning"},
+		{types.SeverityNotice, "info"},
+		{types.Severity(-1), "info"},  // Unknown defaults to info
+		{types.Severity(99), "info"},  // Unknown defaults to info
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			got := mapToCheckstyleSeverity(tt.severity)
+			if got != tt.expected {
+				t.Errorf("mapToCheckstyleSeverity(%v) = %q, want %q", tt.severity, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCheckstyleRenderer_FallbackToOldLocation(t *testing.T) {
+	// Test that OldLocation is used when NewLocation is nil
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC002",
+				RuleName: "input-removed",
+				Severity: types.SeverityError,
+				Message:  "Variable removed",
+				OldLocation: &types.FileRange{
+					Filename: "old_file.tf",
+					Line:     15,
+					Column:   3,
+				},
+				// No NewLocation
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &CheckstyleRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	var checkstyle checkstyleOutput
+	if err := xml.Unmarshal(buf.Bytes(), &checkstyle); err != nil {
+		t.Fatalf("Invalid XML: %v", err)
+	}
+
+	if len(checkstyle.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(checkstyle.Files))
+	}
+
+	if checkstyle.Files[0].Name != "old_file.tf" {
+		t.Errorf("file name = %s, want old_file.tf (should fallback to OldLocation)", checkstyle.Files[0].Name)
+	}
+
+	if checkstyle.Files[0].Errors[0].Line != 15 {
+		t.Errorf("line = %d, want 15", checkstyle.Files[0].Errors[0].Line)
+	}
+}
+
+func TestCheckstyleRenderer_NoLocation(t *testing.T) {
+	// Test finding with no location at all
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC100",
+				RuleName: "resource-removed",
+				Severity: types.SeverityError,
+				Message:  "Resource removed without moved block",
+				// No location
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &CheckstyleRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	var checkstyle checkstyleOutput
+	if err := xml.Unmarshal(buf.Bytes(), &checkstyle); err != nil {
+		t.Fatalf("Invalid XML: %v", err)
+	}
+
+	if len(checkstyle.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(checkstyle.Files))
+	}
+
+	// Should use <unknown> as filename
+	if checkstyle.Files[0].Name != "<unknown>" {
+		t.Errorf("file name = %s, want <unknown>", checkstyle.Files[0].Name)
+	}
+}
+
 func TestCheckstyleRenderer_DeterministicFileOrder(t *testing.T) {
 	// Create findings across multiple files in non-alphabetical order
 	result := &types.CheckResult{

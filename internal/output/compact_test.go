@@ -159,6 +159,41 @@ func TestCompactRenderer_OldLocation(t *testing.T) {
 	}
 }
 
+func TestCompactRenderer_NoLocation(t *testing.T) {
+	// Test finding with neither new nor old location
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC100",
+				RuleName: "resource-removed-no-moved",
+				Severity: types.SeverityError,
+				Message:  "Resource removed without moved block",
+				// No location at all
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &CompactRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	output := buf.String()
+	// Should use <unknown>:0:0 when no location is available
+	if !strings.Contains(output, "<unknown>:0:0") {
+		t.Errorf("expected <unknown>:0:0, got: %s", output)
+	}
+	if !strings.Contains(output, "BC100") {
+		t.Errorf("expected BC100 rule ID, got: %s", output)
+	}
+}
+
 func TestCompactRenderer_Empty(t *testing.T) {
 	result := &types.CheckResult{
 		OldPath:  "/old",

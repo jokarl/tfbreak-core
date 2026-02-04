@@ -334,6 +334,28 @@ func TestSARIFRenderer_NoLocation(t *testing.T) {
 	}
 }
 
+func TestMapToSARIFLevel_AllCases(t *testing.T) {
+	tests := []struct {
+		severity types.Severity
+		expected string
+	}{
+		{types.SeverityError, "error"},
+		{types.SeverityWarning, "warning"},
+		{types.SeverityNotice, "note"},
+		{types.Severity(-1), "none"},  // Unknown defaults to none
+		{types.Severity(99), "none"},  // Unknown defaults to none
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			got := mapToSARIFLevel(tt.severity)
+			if got != tt.expected {
+				t.Errorf("mapToSARIFLevel(%v) = %q, want %q", tt.severity, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestSARIFRenderer_DeterministicRuleOrder(t *testing.T) {
 	// Create findings with multiple rule IDs in non-alphabetical order
 	result := &types.CheckResult{

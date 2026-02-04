@@ -154,19 +154,57 @@ func TestManager_convertSeverity(t *testing.T) {
 	mgr := &Manager{}
 
 	tests := []struct {
+		name  string
 		input tflint.Severity
 		want  types.Severity
 	}{
-		{tflint.ERROR, types.SeverityError},
-		{tflint.WARNING, types.SeverityWarning},
-		{tflint.NOTICE, types.SeverityNotice},
+		{"ERROR maps to SeverityError", tflint.ERROR, types.SeverityError},
+		{"WARNING maps to SeverityWarning", tflint.WARNING, types.SeverityWarning},
+		{"NOTICE maps to SeverityNotice", tflint.NOTICE, types.SeverityNotice},
+		{"Unknown severity (0) defaults to SeverityError", tflint.Severity(0), types.SeverityError},
+		{"Unknown severity (99) defaults to SeverityError", tflint.Severity(99), types.SeverityError},
+		{"Unknown severity (-1) defaults to SeverityError", tflint.Severity(-1), types.SeverityError},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.input.String(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			got := mgr.convertSeverity(tt.input)
 			if got != tt.want {
 				t.Errorf("convertSeverity(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSeverityMappingConsistency verifies that severity mappings between
+// tflint SDK and internal types produce consistent string outputs.
+// This test guards against unintentional changes to severity semantics.
+func TestSeverityMappingConsistency(t *testing.T) {
+	mgr := &Manager{}
+
+	// Verify that mapped severities produce the same string representation
+	tests := []struct {
+		sdkSeverity  tflint.Severity
+		expectedStr  string
+	}{
+		{tflint.ERROR, "ERROR"},
+		{tflint.WARNING, "WARNING"},
+		{tflint.NOTICE, "NOTICE"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expectedStr, func(t *testing.T) {
+			// SDK severity string
+			sdkStr := tt.sdkSeverity.String()
+			if sdkStr != tt.expectedStr {
+				t.Errorf("SDK severity String() = %q, want %q", sdkStr, tt.expectedStr)
+			}
+
+			// Converted internal severity string
+			internal := mgr.convertSeverity(tt.sdkSeverity)
+			internalStr := internal.String()
+			if internalStr != tt.expectedStr {
+				t.Errorf("Internal severity String() = %q, want %q", internalStr, tt.expectedStr)
 			}
 		})
 	}
@@ -194,5 +232,86 @@ func TestPluginSummary_Fields(t *testing.T) {
 
 	if len(summary.Rules) != 5 {
 		t.Errorf("len(Rules) = %d, want 5", len(summary.Rules))
+	}
+}
+
+func TestManager_toSDKConfig_RulesWithNilEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Rules = []*config.RuleConfig{
+		{ID: "rule1", Enabled: nil}, // nil Enabled should default to true
+	}
+
+	mgr := NewManager(cfg)
+	sdkConfig := mgr.toSDKConfig()
+
+	if rule1, ok := sdkConfig.Rules["rule1"]; ok {
+		if !rule1.Enabled {
+			t.Error("rule1 should default to enabled when Enabled is nil")
+		}
+	} else {
+		t.Error("rule1 not found in SDK config")
+	}
+}
+
+func TestManager_HasPlugins_AfterClose(t *testing.T) {
+	cfg := config.Default()
+	mgr := NewManager(cfg)
+
+	// Close should clear plugins
+	mgr.Close()
+
+	if mgr.HasPlugins() {
+		t.Error("HasPlugins() should return false after Close()")
+	}
+
+	if mgr.PluginCount() != 0 {
+		t.Errorf("PluginCount() = %d, want 0 after Close()", mgr.PluginCount())
+	}
+}
+
+func TestManager_ExecuteRules_WithNilFiles(t *testing.T) {
+	cfg := config.Default()
+	mgr := NewManager(cfg)
+	defer mgr.Close()
+
+	// Should not panic with nil file maps
+	findings, errors := mgr.ExecuteRules(nil, nil)
+
+	if len(findings) != 0 {
+		t.Errorf("ExecuteRules(nil, nil) returned %d findings, want 0", len(findings))
+	}
+
+	if len(errors) != 0 {
+		t.Errorf("ExecuteRules(nil, nil) returned %d errors, want 0", len(errors))
+	}
+}
+
+func TestManager_DiscoverAndLoad_MultipleCallsAreSafe(t *testing.T) {
+	cleanup := isolatePluginDiscovery(t)
+	defer cleanup()
+
+	cfg := config.Default()
+	cfg.ConfigBlock = &config.ConfigBlockConfig{
+		PluginDir: t.TempDir(),
+	}
+
+	mgr := NewManager(cfg)
+	defer mgr.Close()
+
+	// First call
+	count1, err1 := mgr.DiscoverAndLoad()
+	if len(err1) != 0 {
+		t.Errorf("First DiscoverAndLoad() errors = %v", err1)
+	}
+
+	// Second call should be safe
+	count2, err2 := mgr.DiscoverAndLoad()
+	if len(err2) != 0 {
+		t.Errorf("Second DiscoverAndLoad() errors = %v", err2)
+	}
+
+	// Both should return same count (0 in this case since no plugins)
+	if count1 != count2 {
+		t.Errorf("DiscoverAndLoad() counts differ: %d vs %d", count1, count2)
 	}
 }
