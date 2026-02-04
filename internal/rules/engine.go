@@ -59,6 +59,17 @@ func (e *Engine) DisableRule(ruleID string) {
 	}
 }
 
+// DisableAllRules disables all rules in the engine
+func (e *Engine) DisableAllRules() {
+	for _, rule := range e.registry.All() {
+		cfg := e.GetConfig(rule.ID())
+		if cfg != nil {
+			cfg.Enabled = false
+			e.config[rule.ID()] = cfg
+		}
+	}
+}
+
 // Evaluate runs all enabled rules against the old and new snapshots
 func (e *Engine) Evaluate(old, new *types.ModuleSnapshot) []*types.Finding {
 	var findings []*types.Finding

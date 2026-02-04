@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -35,11 +36,14 @@ var (
 	enableFlag    []string
 	disableFlag   []string
 	severityFlags []string
+	onlyFlag      []string
 
 	// Path flags
-	configFlag  string
-	includeFlag []string
-	excludeFlag []string
+	configFlag    string
+	includeFlag   []string
+	excludeFlag   []string
+	filterFlag    string
+	recursiveFlag bool
 
 	// Annotation flags
 	noAnnotationsFlag bool
@@ -91,15 +95,18 @@ func init() {
 	checkCmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "Verbose output")
 
 	// Policy flags
-	checkCmd.Flags().StringVar(&failOnFlag, "fail-on", "", "Fail on severity: ERROR, WARNING, NOTICE")
-	checkCmd.Flags().StringSliceVar(&enableFlag, "enable", nil, "Enable rules (comma-separated)")
-	checkCmd.Flags().StringSliceVar(&disableFlag, "disable", nil, "Disable rules (comma-separated)")
+	checkCmd.Flags().StringVar(&failOnFlag, "minimum-failure-severity", "", "Minimum severity to fail: ERROR, WARNING, NOTICE")
+	checkCmd.Flags().StringSliceVar(&enableFlag, "enable-rule", nil, "Enable rules by ID or name (can be repeated)")
+	checkCmd.Flags().StringSliceVar(&disableFlag, "disable-rule", nil, "Disable rules by ID or name (can be repeated)")
 	checkCmd.Flags().StringSliceVar(&severityFlags, "severity", nil, "Override rule severity (RULE=SEV)")
+	checkCmd.Flags().StringSliceVar(&onlyFlag, "only", nil, "Run only these rules by ID or name (can be repeated)")
 
 	// Config and path flags
 	checkCmd.Flags().StringVarP(&configFlag, "config", "c", "", "Path to config file")
 	checkCmd.Flags().StringSliceVar(&includeFlag, "include", nil, "Include patterns (overrides config)")
 	checkCmd.Flags().StringSliceVar(&excludeFlag, "exclude", nil, "Exclude patterns (overrides config)")
+	checkCmd.Flags().StringVar(&filterFlag, "filter", "", "Limit scan to specific directory")
+	checkCmd.Flags().BoolVar(&recursiveFlag, "recursive", false, "Scan subdirectories containing .tf files")
 
 	// Annotation flags
 	checkCmd.Flags().BoolVar(&noAnnotationsFlag, "no-annotations", false, "Disable annotation processing")
@@ -231,6 +238,24 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		defer cleanup()
 	}
 
+	// Apply --filter to narrow scan directory
+	scanOldDir := oldDir
+	scanNewDir := newDir
+	if filterFlag != "" {
+		scanOldDir = filepath.Join(oldDir, filterFlag)
+		scanNewDir = filepath.Join(newDir, filterFlag)
+	}
+
+	// Handle recursive mode
+	if recursiveFlag {
+		return runRecursiveCheck(cmd, scanOldDir, scanNewDir, cleanup)
+	}
+
+	return runSingleCheck(scanOldDir, scanNewDir)
+}
+
+// runSingleCheck performs a check on a single directory pair
+func runSingleCheck(oldDir, newDir string) error {
 	// Load configuration
 	cfg, err := config.Load(configFlag, oldDir)
 	if err != nil {
@@ -325,6 +350,141 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// runRecursiveCheck finds all module directories and runs checks on each
+func runRecursiveCheck(_ *cobra.Command, oldDir, newDir string, _ func()) error {
+	// Find all directories with .tf files in newDir
+	modules := findModuleDirs(newDir)
+	if len(modules) == 0 {
+		return fmt.Errorf("no directories containing .tf files found in %s", newDir)
+	}
+
+	// Load configuration once for common settings
+	cfg, err := config.Load(configFlag, oldDir)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	applyFlagOverrides(cfg)
+
+	failOn, err := types.ParseSeverity(cfg.Policy.FailOn)
+	if err != nil {
+		return fmt.Errorf("invalid fail_on value: %w", err)
+	}
+
+	// Aggregate results from all modules
+	aggregatedResult := types.NewCheckResult(oldDir, newDir, failOn)
+	filter := pathfilter.New(cfg.Paths.Include, cfg.Paths.Exclude)
+
+	for _, modulePath := range modules {
+		relPath, err := filepath.Rel(newDir, modulePath)
+		if err != nil {
+			relPath = modulePath
+		}
+		oldModulePath := filepath.Join(oldDir, relPath)
+
+		// Skip if old module doesn't exist
+		if _, err := os.Stat(oldModulePath); os.IsNotExist(err) {
+			if verboseFlag {
+				fmt.Fprintf(os.Stderr, "Skipping %s (not found in old directory)\n", relPath)
+			}
+			continue
+		}
+
+		if verboseFlag {
+			fmt.Fprintf(os.Stderr, "Checking module: %s\n", relPath)
+		}
+
+		// Load snapshots for this module
+		oldSnapshot, err := loader.LoadWithFilter(oldModulePath, filter)
+		if err != nil {
+			if verboseFlag {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load old config for %s: %v\n", relPath, err)
+			}
+			continue
+		}
+
+		newSnapshot, err := loader.LoadWithFilter(modulePath, filter)
+		if err != nil {
+			if verboseFlag {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load new config for %s: %v\n", relPath, err)
+			}
+			continue
+		}
+
+		// Create and configure engine for this module
+		engine := rules.NewDefaultEngine()
+		configureEngine(engine, cfg)
+
+		// Run rules
+		checkOpts := rules.CheckOptions{
+			IncludeRemediation: includeRemediationFlag,
+		}
+		result := engine.CheckWithOptions(oldModulePath, modulePath, oldSnapshot, newSnapshot, failOn, checkOpts)
+
+		// Add findings to aggregated result
+		for _, finding := range result.Findings {
+			aggregatedResult.AddFinding(finding)
+		}
+	}
+
+	// Recompute aggregated result
+	aggregatedResult.Compute()
+
+	// Determine output writer
+	var writer *os.File
+	if outputFlag != "" {
+		f, err := os.Create(outputFlag)
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %w", err)
+		}
+		defer f.Close()
+		writer = f
+	} else {
+		writer = os.Stdout
+	}
+
+	// Skip output if quiet and no findings
+	if !quietFlag || aggregatedResult.Result == "FAIL" {
+		colorEnabled := shouldUseColor(writer, cfg.Output.Color)
+		format := output.Format(cfg.Output.Format)
+		renderer := output.NewRenderer(format, colorEnabled)
+		if err := renderer.Render(writer, aggregatedResult); err != nil {
+			return fmt.Errorf("failed to render output: %w", err)
+		}
+	}
+
+	if aggregatedResult.Result == "FAIL" {
+		os.Exit(1)
+	}
+
+	return nil
+}
+
+// findModuleDirs finds all directories containing .tf files under root
+func findModuleDirs(root string) []string {
+	var dirs []string
+	seen := make(map[string]bool)
+
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip directories we can't access
+		}
+		if d.IsDir() {
+			return nil
+		}
+		// Check if this is a .tf file
+		if strings.HasSuffix(path, ".tf") {
+			dir := filepath.Dir(path)
+			if !seen[dir] {
+				seen[dir] = true
+				dirs = append(dirs, dir)
+			}
+		}
+		return nil
+	})
+
+	return dirs
+}
+
 // applyFlagOverrides applies CLI flags to the config, with flags taking precedence
 func applyFlagOverrides(cfg *config.Config) {
 	// Output overrides
@@ -354,8 +514,39 @@ func applyFlagOverrides(cfg *config.Config) {
 	}
 }
 
+// resolveRuleID converts a rule identifier (ID or name) to its canonical ID.
+// Examples: "BC001" -> "BC001", "required-input-added" -> "BC001"
+func resolveRuleID(identifier string) string {
+	identifier = strings.TrimSpace(identifier)
+
+	// Try as ID first (uppercase)
+	upper := strings.ToUpper(identifier)
+	if _, ok := rules.DefaultRegistry.Get(upper); ok {
+		return upper
+	}
+
+	// Try as name (case-insensitive kebab-case)
+	lower := strings.ToLower(identifier)
+	if rule, ok := rules.DefaultRegistry.GetByName(lower); ok {
+		return rule.ID()
+	}
+
+	// Return as-is uppercase (will fail gracefully in engine)
+	return upper
+}
+
 // configureEngine applies config settings to the rules engine
 func configureEngine(engine *rules.Engine, cfg *config.Config) {
+	// If --only is specified, disable all rules first, then enable only the specified ones
+	if len(onlyFlag) > 0 {
+		engine.DisableAllRules()
+		for _, identifier := range onlyFlag {
+			ruleID := resolveRuleID(identifier)
+			engine.EnableRule(ruleID)
+		}
+		return // Skip other enable/disable logic
+	}
+
 	// Apply rule configurations from config file
 	for _, rc := range cfg.Rules {
 		if rc.Enabled != nil {
@@ -378,12 +569,12 @@ func configureEngine(engine *rules.Engine, cfg *config.Config) {
 	}
 
 	// Apply CLI enable/disable flags (these take precedence)
-	for _, ruleID := range enableFlag {
-		ruleID = strings.TrimSpace(strings.ToUpper(ruleID))
+	for _, identifier := range enableFlag {
+		ruleID := resolveRuleID(identifier)
 		engine.EnableRule(ruleID)
 	}
-	for _, ruleID := range disableFlag {
-		ruleID = strings.TrimSpace(strings.ToUpper(ruleID))
+	for _, identifier := range disableFlag {
+		ruleID := resolveRuleID(identifier)
 		engine.DisableRule(ruleID)
 	}
 
@@ -393,7 +584,7 @@ func configureEngine(engine *rules.Engine, cfg *config.Config) {
 		if len(parts) != 2 {
 			continue
 		}
-		ruleID := strings.TrimSpace(strings.ToUpper(parts[0]))
+		ruleID := resolveRuleID(parts[0])
 		sevStr := strings.TrimSpace(strings.ToUpper(parts[1]))
 		sev, err := types.ParseSeverity(sevStr)
 		if err != nil {
