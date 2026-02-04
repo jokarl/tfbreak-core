@@ -2,8 +2,11 @@ package types
 
 // FileRange represents a location in a source file
 type FileRange struct {
-	Filename string `json:"filename"`
-	Line     int    `json:"line"`
+	Filename  string `json:"filename"`
+	Line      int    `json:"line"`
+	Column    int    `json:"column,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	EndColumn int    `json:"end_column,omitempty"`
 }
 
 // ModuleSnapshot represents the extracted signature of a Terraform module

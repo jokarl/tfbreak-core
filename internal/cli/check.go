@@ -84,7 +84,7 @@ func init() {
 	rootCmd.AddCommand(checkCmd)
 
 	// Output flags
-	checkCmd.Flags().StringVar(&formatFlag, "format", "", "Output format: text, json")
+	checkCmd.Flags().StringVar(&formatFlag, "format", "", "Output format: text, json, compact, checkstyle, junit, sarif")
 	checkCmd.Flags().StringVarP(&outputFlag, "output", "o", "", "Write output to file instead of stdout")
 	checkCmd.Flags().StringVar(&colorFlag, "color", "", "Color mode: auto, always, never")
 	checkCmd.Flags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress non-error output")
