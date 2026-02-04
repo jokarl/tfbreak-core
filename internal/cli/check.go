@@ -832,12 +832,23 @@ func resolveDirectories(mode checkMode, args []string) (oldDir, newDir string, c
 
 // executePluginRules discovers, loads, and executes plugin rules.
 // Plugin findings are added to the result.
+// Returns an error if configured plugins are missing (user should run tfbreak init).
 func executePluginRules(cfg *config.Config, oldDir, newDir string, result *types.CheckResult, verbose bool) error {
+	// Check for missing plugins before attempting to load
+	missing := plugin.GetMissingPlugins(cfg)
+	if len(missing) > 0 {
+		var names []string
+		for _, p := range missing {
+			names = append(names, p.Name)
+		}
+		return fmt.Errorf("plugin(s) not installed: %s\n\nRun 'tfbreak --init' to install configured plugins", strings.Join(names, ", "))
+	}
+
 	// Create plugin manager
 	mgr := plugin.NewManager(cfg)
 	defer mgr.Close()
 
-	// Discover and load plugins
+	// Discover and load plugins (no auto-download)
 	count, loadErrs := mgr.DiscoverAndLoad()
 	if len(loadErrs) > 0 && verbose {
 		for _, err := range loadErrs {

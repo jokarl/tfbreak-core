@@ -52,25 +52,32 @@ func NewManager(cfg *config.Config) *Manager {
 // DiscoverAndLoad discovers plugins and loads enabled ones.
 // Returns the number of plugins loaded and any errors encountered.
 func (m *Manager) DiscoverAndLoad() (int, []error) {
+	return m.DiscoverAndLoadWithAutoDownload(false)
+}
+
+// DiscoverAndLoadWithAutoDownload discovers plugins, optionally auto-downloads
+// missing ones, and loads enabled plugins.
+// Returns the number of plugins loaded and any errors encountered.
+func (m *Manager) DiscoverAndLoadWithAutoDownload(autoDownload bool) (int, []error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Discover plugins
-	discovered, err := Discover(m.config)
-	if err != nil {
-		return 0, []error{fmt.Errorf("plugin discovery failed: %w", err)}
-	}
+	// Discover plugins (with optional auto-download)
+	discovered, downloadErrs := DiscoverWithAutoDownload(m.config, autoDownload)
+	var errs []error
+	errs = append(errs, downloadErrs...)
 
 	// Filter to enabled plugins
 	enabled := GetEnabledPlugins(discovered)
 
 	if len(enabled) == 0 {
-		return 0, nil
+		return 0, errs
 	}
 
 	// Load enabled plugins
-	loaded, errs := m.loader.LoadAll(enabled)
+	loaded, loadErrs := m.loader.LoadAll(enabled)
 	m.plugins = loaded
+	errs = append(errs, loadErrs...)
 
 	// Apply configuration to loaded plugins
 	for _, p := range m.plugins {
