@@ -112,4 +112,24 @@ func TestSeverityJSON(t *testing.T) {
 			t.Errorf("Unmarshal level = %v, want %v", w.Level, SeverityWarning)
 		}
 	})
+
+	t.Run("unmarshal invalid JSON type", func(t *testing.T) {
+		// JSON is valid but type is wrong (number instead of string)
+		input := `{"level":123}`
+		var w wrapper
+		err := json.Unmarshal([]byte(input), &w)
+		if err == nil {
+			t.Error("expected error for invalid JSON type, got nil")
+		}
+	})
+
+	t.Run("unmarshal invalid severity value", func(t *testing.T) {
+		// JSON string that's not a valid severity
+		input := `{"level":"CRITICAL"}`
+		var w wrapper
+		err := json.Unmarshal([]byte(input), &w)
+		if err == nil {
+			t.Error("expected error for invalid severity value, got nil")
+		}
+	})
 }
