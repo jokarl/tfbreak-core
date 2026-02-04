@@ -174,6 +174,42 @@ func GetEnabledPlugins(plugins []PluginInfo) []PluginInfo {
 	return enabled
 }
 
+// GetMissingPlugins returns plugins that are configured with a source but not found locally.
+// This is used to determine if the user needs to run `tfbreak init`.
+func GetMissingPlugins(cfg *config.Config) []*config.PluginConfig {
+	// First discover what plugins exist locally
+	discovered, _ := Discover(cfg)
+
+	// Build a map of discovered plugin names
+	discoveredNames := make(map[string]bool)
+	for _, p := range discovered {
+		discoveredNames[p.Name] = true
+	}
+
+	// Find configured plugins with sources that are not discovered
+	var missing []*config.PluginConfig
+	for _, pc := range cfg.Plugins {
+		// Skip if plugin is disabled
+		if pc.Enabled != nil && !*pc.Enabled {
+			continue
+		}
+
+		// Skip if no source configured (can't be auto-downloaded)
+		if pc.Source == "" {
+			continue
+		}
+
+		// Skip if already discovered
+		if discoveredNames[pc.Name] {
+			continue
+		}
+
+		missing = append(missing, pc)
+	}
+
+	return missing
+}
+
 // DiscoverWithAutoDownload discovers plugins and optionally downloads missing ones.
 // For each plugin configured in config with a source field, it checks if the plugin
 // is already discovered locally. If not found and autoDownload is true, it downloads
