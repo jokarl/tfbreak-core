@@ -1,6 +1,6 @@
 module github.com/jokarl/tfbreak-core
 
-go 1.24.0
+go 1.25.6
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20260120201749-785479628bd7
-	github.com/jokarl/tfbreak-plugin-sdk v0.2.1
+	github.com/jokarl/tfbreak-plugin-sdk v0.3.0
 	github.com/spf13/cobra v1.8.0
 	github.com/zclconf/go-cty v1.16.3
 )
@@ -37,5 +37,3 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/jokarl/tfbreak-plugin-sdk => ../tfbreak-plugin-sdk
