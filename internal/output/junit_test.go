@@ -303,3 +303,69 @@ func TestJUnitRenderer_WithRemediation(t *testing.T) {
 		t.Error("expected remediation in failure content")
 	}
 }
+
+func TestJUnitRenderer_DeterministicSuiteOrder(t *testing.T) {
+	// Create findings with multiple rules in non-alphabetical order
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "RC099",
+				RuleName: "rule-z",
+				Severity: types.SeverityWarning,
+				Message:  "Warning",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     1,
+				},
+			},
+			{
+				RuleID:   "BC001",
+				RuleName: "rule-a",
+				Severity: types.SeverityError,
+				Message:  "Error",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     2,
+				},
+			},
+			{
+				RuleID:   "MC050",
+				RuleName: "rule-m",
+				Severity: types.SeverityError,
+				Message:  "Error",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     3,
+				},
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &JUnitRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	var testSuites junitTestSuites
+	if err := xml.Unmarshal(buf.Bytes(), &testSuites); err != nil {
+		t.Fatalf("Invalid XML: %v", err)
+	}
+
+	// Test suites should be sorted by rule ID (BC001, MC050, RC099)
+	if len(testSuites.TestSuites) != 3 {
+		t.Fatalf("expected 3 test suites, got %d", len(testSuites.TestSuites))
+	}
+
+	expectedOrder := []string{"tfbreak.BC001", "tfbreak.MC050", "tfbreak.RC099"}
+	for i, expected := range expectedOrder {
+		if testSuites.TestSuites[i].Name != expected {
+			t.Errorf("suite[%d].Name = %s, want %s", i, testSuites.TestSuites[i].Name, expected)
+		}
+	}
+}

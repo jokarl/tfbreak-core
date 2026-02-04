@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/xml"
 	"io"
+	"sort"
 
 	"github.com/jokarl/tfbreak-core/internal/types"
 )
@@ -72,16 +73,22 @@ func (r *CheckstyleRenderer) Render(w io.Writer, result *types.CheckResult) erro
 		fileMap[filename] = append(fileMap[filename], err)
 	}
 
-	// Build the output structure
+	// Build the output structure - sort filenames for deterministic output
+	filenames := make([]string, 0, len(fileMap))
+	for filename := range fileMap {
+		filenames = append(filenames, filename)
+	}
+	sort.Strings(filenames)
+
 	output := checkstyleOutput{
 		Version: "1.0",
 		Files:   make([]checkstyleFile, 0, len(fileMap)),
 	}
 
-	for filename, errors := range fileMap {
+	for _, filename := range filenames {
 		output.Files = append(output.Files, checkstyleFile{
 			Name:   filename,
-			Errors: errors,
+			Errors: fileMap[filename],
 		})
 	}
 

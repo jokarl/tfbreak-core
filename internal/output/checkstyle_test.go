@@ -261,3 +261,69 @@ func TestCheckstyleRenderer_Empty(t *testing.T) {
 		t.Errorf("expected 0 files, got %d", len(checkstyle.Files))
 	}
 }
+
+func TestCheckstyleRenderer_DeterministicFileOrder(t *testing.T) {
+	// Create findings across multiple files in non-alphabetical order
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "BC001",
+				RuleName: "test",
+				Severity: types.SeverityError,
+				Message:  "Error in zebra.tf",
+				NewLocation: &types.FileRange{
+					Filename: "zebra.tf",
+					Line:     1,
+				},
+			},
+			{
+				RuleID:   "BC001",
+				RuleName: "test",
+				Severity: types.SeverityError,
+				Message:  "Error in alpha.tf",
+				NewLocation: &types.FileRange{
+					Filename: "alpha.tf",
+					Line:     1,
+				},
+			},
+			{
+				RuleID:   "BC001",
+				RuleName: "test",
+				Severity: types.SeverityError,
+				Message:  "Error in middle.tf",
+				NewLocation: &types.FileRange{
+					Filename: "middle.tf",
+					Line:     1,
+				},
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &CheckstyleRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	var checkstyle checkstyleOutput
+	if err := xml.Unmarshal(buf.Bytes(), &checkstyle); err != nil {
+		t.Fatalf("Invalid XML: %v", err)
+	}
+
+	// Files should be sorted alphabetically
+	if len(checkstyle.Files) != 3 {
+		t.Fatalf("expected 3 files, got %d", len(checkstyle.Files))
+	}
+
+	expectedOrder := []string{"alpha.tf", "middle.tf", "zebra.tf"}
+	for i, expected := range expectedOrder {
+		if checkstyle.Files[i].Name != expected {
+			t.Errorf("file[%d].Name = %s, want %s", i, checkstyle.Files[i].Name, expected)
+		}
+	}
+}

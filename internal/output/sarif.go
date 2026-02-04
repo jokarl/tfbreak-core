@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"io"
+	"sort"
 
 	"github.com/jokarl/tfbreak-core/internal/types"
 )
@@ -98,9 +99,16 @@ func (r *SARIFRenderer) Render(w io.Writer, result *types.CheckResult) error {
 		}
 	}
 
-	// Build rules array
+	// Build rules array - sort by rule ID for deterministic output
+	ruleIDs := make([]string, 0, len(ruleMap))
+	for ruleID := range ruleMap {
+		ruleIDs = append(ruleIDs, ruleID)
+	}
+	sort.Strings(ruleIDs)
+
 	var rules []sarifRule
-	for ruleID, f := range ruleMap {
+	for _, ruleID := range ruleIDs {
+		f := ruleMap[ruleID]
 		rules = append(rules, sarifRule{
 			ID:   ruleID,
 			Name: f.RuleName,

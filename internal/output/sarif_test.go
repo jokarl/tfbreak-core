@@ -333,3 +333,70 @@ func TestSARIFRenderer_NoLocation(t *testing.T) {
 		t.Errorf("expected 0 locations, got %d", len(result1.Locations))
 	}
 }
+
+func TestSARIFRenderer_DeterministicRuleOrder(t *testing.T) {
+	// Create findings with multiple rule IDs in non-alphabetical order
+	result := &types.CheckResult{
+		OldPath: "/old",
+		NewPath: "/new",
+		Findings: []*types.Finding{
+			{
+				RuleID:   "RC099",
+				RuleName: "rule-z",
+				Severity: types.SeverityWarning,
+				Message:  "Warning Z",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     1,
+				},
+			},
+			{
+				RuleID:   "BC001",
+				RuleName: "rule-a",
+				Severity: types.SeverityError,
+				Message:  "Error A",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     2,
+				},
+			},
+			{
+				RuleID:   "MC050",
+				RuleName: "rule-m",
+				Severity: types.SeverityNotice,
+				Message:  "Notice M",
+				NewLocation: &types.FileRange{
+					Filename: "test.tf",
+					Line:     3,
+				},
+			},
+		},
+		Result: "FAIL",
+		FailOn: types.SeverityError,
+	}
+
+	renderer := &SARIFRenderer{}
+	var buf bytes.Buffer
+	err := renderer.Render(&buf, result)
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	var sarif sarifLog
+	if err := json.Unmarshal(buf.Bytes(), &sarif); err != nil {
+		t.Fatalf("Invalid JSON: %v", err)
+	}
+
+	// Rules should be sorted by ID (BC001, MC050, RC099)
+	rules := sarif.Runs[0].Tool.Driver.Rules
+	if len(rules) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(rules))
+	}
+
+	expectedOrder := []string{"BC001", "MC050", "RC099"}
+	for i, expected := range expectedOrder {
+		if rules[i].ID != expected {
+			t.Errorf("rule[%d].ID = %s, want %s", i, rules[i].ID, expected)
+		}
+	}
+}

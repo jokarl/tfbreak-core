@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/jokarl/tfbreak-core/internal/types"
@@ -73,7 +74,15 @@ func (r *JUnitRenderer) Render(w io.Writer, result *types.CheckResult) error {
 
 	timestamp := time.Now().Format(time.RFC3339)
 
-	for ruleID, findings := range ruleFindings {
+	// Sort rule IDs for deterministic output
+	ruleIDs := make([]string, 0, len(ruleFindings))
+	for ruleID := range ruleFindings {
+		ruleIDs = append(ruleIDs, ruleID)
+	}
+	sort.Strings(ruleIDs)
+
+	for _, ruleID := range ruleIDs {
+		findings := ruleFindings[ruleID]
 		suite := junitTestSuite{
 			Name:      fmt.Sprintf("tfbreak.%s", ruleID),
 			Timestamp: timestamp,
