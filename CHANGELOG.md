@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/jokarl/tfbreak-core/compare/v0.4.0...v0.5.0) (2026-02-05)
+
+
+### Features
+
+* **cli:** add rule filtering and recursive scan flags ([#22](https://github.com/jokarl/tfbreak-core/issues/22)) ([3b09633](https://github.com/jokarl/tfbreak-core/commit/3b096331e5167eb12a80104a38f11da2a971cbc0))
+
 ## [0.4.0](https://github.com/jokarl/tfbreak-core/compare/v0.3.0...v0.4.0) (2026-02-04)
 
 
