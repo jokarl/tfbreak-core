@@ -74,6 +74,64 @@ func TestEngineDisableRule(t *testing.T) {
 	}
 }
 
+func TestEngineDisableAllRules(t *testing.T) {
+	engine := NewDefaultEngine()
+	engine.DisableAllRules()
+
+	old := types.NewModuleSnapshot("/old")
+	old.Variables["removed_var"] = &types.VariableSignature{
+		Name:     "removed_var",
+		Required: true,
+	}
+	old.Outputs["removed_output"] = &types.OutputSignature{
+		Name: "removed_output",
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Variables["new_required"] = &types.VariableSignature{
+		Name:     "new_required",
+		Required: true,
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	if len(findings) != 0 {
+		t.Errorf("Expected no findings with all rules disabled, got %d", len(findings))
+	}
+}
+
+func TestEngineDisableAllRulesThenEnable(t *testing.T) {
+	engine := NewDefaultEngine()
+	engine.DisableAllRules()
+	engine.EnableRule("BC001") // Enable only BC001
+
+	old := types.NewModuleSnapshot("/old")
+	old.Variables["removed_var"] = &types.VariableSignature{
+		Name: "removed_var",
+	}
+
+	new := types.NewModuleSnapshot("/new")
+	new.Variables["new_required"] = &types.VariableSignature{
+		Name:     "new_required",
+		Required: true,
+	}
+
+	findings := engine.Evaluate(old, new)
+
+	// Should only have BC001, not BC002
+	ruleIDs := make(map[string]int)
+	for _, f := range findings {
+		ruleIDs[f.RuleID]++
+	}
+
+	if ruleIDs["BC001"] != 1 {
+		t.Errorf("Expected 1 BC001 finding, got %d", ruleIDs["BC001"])
+	}
+	if ruleIDs["BC002"] != 0 {
+		t.Errorf("Expected no BC002 findings (should be disabled), got %d", ruleIDs["BC002"])
+	}
+}
+
 func TestEngineCheck(t *testing.T) {
 	engine := NewDefaultEngine()
 
